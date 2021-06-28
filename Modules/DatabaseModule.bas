@@ -2,6 +2,7 @@ Attribute VB_Name = "DatabaseModule"
 
 Dim E10DataBaseConnection As ADODB.Connection
 Dim ML7DataBaseConnection As ADODB.Connection
+Dim KioskDataBaseConnection As ADODB.Connection
 Dim sqlCommand As ADODB.Command
 Dim sqlRecordSet As ADODB.Recordset
 Dim fso As New FileSystemObject
@@ -20,6 +21,12 @@ Sub Init_Connections()
         Set E10DataBaseConnection = New ADODB.Connection
         E10DataBaseConnection.ConnectionString = E10_CONN_STRING
         E10DataBaseConnection.Open
+    End If
+    
+    If KioskDataBaseConnection Is Nothing Then
+        Set KioskDataBaseConnection = New ADODB.Connection
+        KioskDataBaseConnection.ConnectionString = KIOSK_CONN_STRING
+        KioskDataBaseConnection.Open
     End If
        
         
@@ -66,7 +73,40 @@ Function VerifyJobExists(JobID As String, ByRef PartNum As String, ByRef rev As 
     VerifyJobExists = False
 End Function
 
-Function GetRoutineList(PartNum As String, Revision As String) As ADODB.Recordset
+'TODO:
+Function GetCustomerFromProject(jobNum As String) As String
+    Call Init_Connections
+
+    Set fso = New FileSystemObject
+
+    Set sqlCommand = New ADODB.Command
+    With sqlCommand
+        .ActiveConnection = E10DataBaseConnection
+        .CommandType = adCmdText
+        .CommandText = fso.OpenTextFile(DataSources.QUERIES_PATH & "ProjectCusName.sql").ReadAll
+        
+        Dim partParam As ADODB.Parameter
+        Set partParam = .CreateParameter(Name:="jh.JobNum", Type:=adVarChar, Size:=14, Direction:=adParamInput, Value:=jobNum)
+        .Parameters.Append partParam
+    End With
+
+    Set sqlRecordSet = New ADODB.Recordset
+    sqlRecordSet.CursorLocation = adUseClient
+    sqlRecordSet.Open Source:=sqlCommand, CursorType:=adOpenStatic
+    
+
+    If Not sqlRecordSet.EOF And sqlRecordSet.RecordCount = 1 Then
+        GetCustomerFromProject = sqlRecordSet.Fields(0).Value
+        Exit Function
+    End If
+
+    'TODO: Error here, couldn't find the customer name
+    GetCustomerFromProject = vbNullString
+End Function
+
+'TODO: there is certainly a way we can consolidate the below two functions into one, so much repeated code here
+
+Function GetPartRoutineList(PartNum As String, Revision As String) As ADODB.Recordset
     Call Init_Connections
 
     Set fso = New FileSystemObject
@@ -77,7 +117,7 @@ Function GetRoutineList(PartNum As String, Revision As String) As ADODB.Recordse
     With sqlCommand
         .ActiveConnection = ML7DataBaseConnection
         .CommandType = adCmdText
-        .CommandText = fso.OpenTextFile(DataSources.QUERIES_PATH & "RoutineList.sql").ReadAll
+        .CommandText = fso.OpenTextFile(DataSources.QUERIES_PATH & "PartRoutineList.sql").ReadAll
         
         Dim partParam As ADODB.Parameter
         Set partParam = .CreateParameter(Name:="p.PartName", Type:=adVarChar, Size:=255, Direction:=adParamInput, Value:=mlPartNum)
@@ -91,11 +131,83 @@ Function GetRoutineList(PartNum As String, Revision As String) As ADODB.Recordse
     
 
     If Not sqlRecordSet.EOF Then
-        Set GetRoutineList = sqlRecordSet.Clone
+        Set GetPartRoutineList = sqlRecordSet.Clone
         Exit Function
     End If
 
     'TODO: Error here on the available Routines, None should be handled differently than an actual error
-    Set GetRoutineList = Nothing
+    Set GetPartRoutineList = Nothing
+End Function
+
+Function GetRunRoutineList(jobNum As String) As ADODB.Recordset
+    Call Init_Connections
+
+    Set fso = New FileSystemObject
+
+    Set sqlCommand = New ADODB.Command
+    With sqlCommand
+        .ActiveConnection = ML7DataBaseConnection
+        .CommandType = adCmdText
+        .CommandText = fso.OpenTextFile(DataSources.QUERIES_PATH & "RunRoutineList.sql").ReadAll
+        
+        Dim partParam As ADODB.Parameter
+        Set partParam = .CreateParameter(Name:="r.RunName", Type:=adVarChar, Size:=255, Direction:=adParamInput, Value:=jobNum)
+        .Parameters.Append partParam
+    End With
+
+    Set sqlRecordSet = New ADODB.Recordset
+    sqlRecordSet.CursorLocation = adUseClient
+    sqlRecordSet.Open Source:=sqlCommand, CursorType:=adOpenStatic
+    
+
+    If Not sqlRecordSet.EOF Then
+        Set GetRunRoutineList = sqlRecordSet.Clone
+        Exit Function
+    End If
+
+    'TODO: Error here on the available Routines, None should be handled differently than an actual error
+    Set GetRunRoutineList = Nothing
+End Function
+
+
+Function GetCustomerName(jobNum As String) As String
+    Call Init_Connections
+    
+    Dim searchParam As String
+    
+    'If our job is an inventory job like 'NVxxx' then, we can just search by the first two characters
+    If Len(test) > 2 And Not IsNumeric(Left(test, 1)) And Not IsNumeric(Mid(test, 2, 1)) Then
+        searchParam = Left(jobNum, 2)
+        GoTo 20
+    End If
+    
+    searchParam = GetCustomerFromProject(jobNum)
+    
+20
+    Set sqlCommand = New ADODB.Command
+    With sqlCommand
+        .ActiveConnection = KioskDataBaseConnection
+        .CommandType = adCmdText
+        .CommandText = "SELECT CustomerName FROM InspectionKiosk.dbo.CustomerTranslation WHERE Abbreviation=?"
+        
+        Dim partParam As ADODB.Parameter
+        Set partParam = .CreateParameter(Name:="Abbreviation", Type:=adVarChar, Size:=255, Direction:=adParamInput, Value:=searchParam)
+        .Parameters.Append partParam
+    End With
+
+    Set sqlRecordSet = New ADODB.Recordset
+    sqlRecordSet.CursorLocation = adUseClient
+    sqlRecordSet.Open Source:=sqlCommand, CursorType:=adOpenStatic
+    
+
+    If Not sqlRecordSet.EOF Then
+        GetCustomerName = sqlRecordSet.Fields(0).Value
+        Exit Function
+    End If
+
+
+    'TODO: Error here, we don't can't find the customer name in our table, the QE should update the Database
+    GetCustomerName = vbNullString
+    
 End Function
 
