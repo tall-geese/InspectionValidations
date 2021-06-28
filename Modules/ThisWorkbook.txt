@@ -1,0 +1,49 @@
+VERSION 1.0 CLASS
+BEGIN
+  MultiUse = -1  'True
+END
+Attribute VB_Name = "ThisWorkbook"
+Attribute VB_GlobalNameSpace = False
+Attribute VB_Creatable = False
+Attribute VB_PredeclaredId = True
+Attribute VB_Exposed = True
+
+
+
+Sub populateHeaders(jobNum As String, routine As Variant, customer As String, machine As String, partNum As String, rev As String, partDesc As String)
+    With Worksheets("PAGE 1")
+        .Unprotect Password:="3063bqa"
+        
+        .Range("C1").Value = jobNum
+        .Range("C2").Value = routine
+        .Range("C3").Value = customer
+        .Range("C4").Value = machine
+        .Range("G3").Value = partNum
+        .Range("I3").Value = rev
+        .Range("G4").Value = partDesc
+        
+        
+        .Protect Password:="3063bqa", AllowFormattingCells:=True
+    
+    
+    End With
+
+End Sub
+
+
+'test checking if the first two characters are numeric
+
+
+Sub testChars()
+    Dim test As String
+    
+    test = "N"
+    Debug.Print (Mid(test, 2, 1))
+    
+    If Len(test) > 2 And Not IsNumeric(Left(test, 1)) And Not IsNumeric(Mid(test, 2, 1)) Then
+        MsgBox ("yup, nuumbers")
+    
+    End If
+
+
+End Sub

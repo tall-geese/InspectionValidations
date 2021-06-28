@@ -9,6 +9,12 @@ Attribute VB_Name = "RibbonCommands"
 '       3. we should ask the DataBase Module to perform our check on whether a jobNumber actually exists and is valid
 '*************************************************************************************************
 
+Dim customer As String
+Dim partNum As String
+Dim rev As String
+Dim machine As String
+Dim cell As String
+Dim partDesc As String
 
 Dim cusRibbon As IRibbonUI
 
@@ -68,9 +74,12 @@ End Sub
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 Public Sub jbEditText_onGetText(ByRef control As IRibbonControl, ByRef Text)
     Text = editTextUcase
+    
+    
     'Ask the workbook to Add the Information to Header Fields
-    ThisWorkbook.populateHeaders jobNum:=editTextUcase, routine:=rtCombo_TextField
-
+    Call ThisWorkbook.populateHeaders(jobNum:=editTextUcase, routine:=rtCombo_TextField, customer:=customer, machine:=machine, partNum:=partNum, rev:=rev, partDesc:=partDesc)
+    ', rev:=rev, description:=partDescription
+    
 End Sub
 
 Public Sub jbEditText_OnChange(ByRef control As Office.IRibbonControl, ByRef Text As String)
@@ -83,21 +92,29 @@ Public Sub jbEditText_OnChange(ByRef control As Office.IRibbonControl, ByRef Tex
     
     rtCombo_Enabled = False
     rtCombo_TextField = vbNullString
+    
+    partNum = vbNullString
+    rev = vbNullString
+    customer = vbNullString
+    machine = vbNullString
+    cell = vbNullString
+    partDesc = vbNullString
     Erase partRoutineList
     Erase runRoutineList
     
     If Text = vbNullString Then GoTo 10
     
-    Dim PartNum As String
-    Dim rev As String
     Dim setupType As String
     
-    If DatabaseModule.VerifyJobExists(Text, PartNum, rev, setupType) Then
+    If DatabaseModule.GetJobInformation(JobID:=Text, partNum:=partNum, rev:=rev, setupType:=setupType, machine:=machine, cell:=cell, _
+                                        partDescription:=partDesc) Then
+    
+        customer = DatabaseModule.GetCustomerName(jobNum:=editTextUcase)
     
         On Error GoTo ML_NotApplicable:
         'TODO create two respective routine retrievals for both run and Part
         runRoutineList = DatabaseModule.GetRunRoutineList(editTextUcase).GetRows()
-        partRoutineList = DatabaseModule.GetPartRoutineList(PartNum, rev).GetRows()
+        partRoutineList = DatabaseModule.GetPartRoutineList(partNum, rev).GetRows()
         
         'TODO: reset the error handling here, test with a 1/0 math
         
@@ -135,7 +152,7 @@ Public Sub jbEditText_OnChange(ByRef control As Office.IRibbonControl, ByRef Tex
     Exit Sub
 
 ML_NotApplicable:
-    MsgBox Prompt:="Not Routines Found for this Job or Part Number " & vbCrLf & "If this is a MeasurLink Job, bring to QE's attention ", Buttons:=vbExclamation
+    MsgBox Prompt:="No Routines Found for this Job or Part Number " & vbCrLf & "If this is a MeasurLink Job, bring to QE's attention ", Buttons:=vbExclamation
     GoTo 10
     
 End Sub
@@ -154,9 +171,12 @@ Public Sub rtCombo_OnChange(ByRef control As Office.IRibbonControl, ByRef Text A
             If Text = runRoutineList(0, i) Then
                 validChange = True
                 lblStatus_Text = runRoutineList(1, i)
+                rtCombo_TextField = Text
+                
+                'TODO: currently commenting this out, hoping that we can populate the headers exclusively with jbEditText_OnGetText()
                 
                 'We have to update the routine header here becuase selecting from the list won't call the OnGetText() event
-                ThisWorkbook.populateHeaders jobNum:=editTextUcase, routine:=Text
+                'ThisWorkbook.populateHeaders jobNum:=editTextUcase, routine:=Text, customer:=DatabaseModule.GetCustomerName(editTextUcase)
             End If
         Next i
     End If
@@ -167,6 +187,7 @@ Public Sub rtCombo_OnChange(ByRef control As Office.IRibbonControl, ByRef Text A
         cusRibbon.InvalidateControl "rtCombo"
     End If
     
+    cusRibbon.InvalidateControl "jbEditText"
     cusRibbon.InvalidateControl "lblStatus"
     
 End Sub
@@ -198,8 +219,10 @@ Public Sub rtCombo_OnGetText(ByRef control As Office.IRibbonControl, ByRef Text 
     Else
         Text = "[SELECT ROUTINE]"
     End If
+    
+    'TODO: currently commenting this out, hoping that we can populate the headers exclusively with jbEditText_OnGetText()
         'Ask the workbook to Add the Information to Header Fields
-    ThisWorkbook.populateHeaders jobNum:=editTextUcase, routine:=rtCombo_TextField
+'    ThisWorkbook.populateHeaders jobNum:=editTextUcase, routine:=rtCombo_TextField
 
 End Sub
 
@@ -261,6 +284,21 @@ Public Sub chkNone_OnGetPressed(ByRef control As IRibbonControl, ByRef pressed A
 End Sub
 
 
+Function testEmpty(Optional something As Variant)
+    If IsMissing(a) Then
+        MsgBox ("its missing")
+    End If
 
+
+End Function
+
+
+Sub test()
+    Dim a As String
+    a = ""
+    testEmpty (a)
+
+
+End Sub
 
 
