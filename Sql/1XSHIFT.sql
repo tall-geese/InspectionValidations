@@ -25,6 +25,6 @@ FROM (SELECT DISTINCT jo.JobNum, ldt.PayrollDate, ldt.Shift
 FROM EpicorLive10.dbo.JobOper jo 
 INNER JOIN EpicorLive10.dbo.LaborDtl ldt ON jo.OprSeq = ldt.OprSeq AND ldt.JobNum = jo.JobNum 
 LEFT OUTER JOIN EpicorLive10.dbo.EmpBasic emp ON ldt.EmployeeNum = emp.EmpID 
-WHERE jo.JobNum = 'NV15035' AND jo.OpCode IN ('SWISS', 'CNC') AND ldt.LaborNote <> 'Adjustment' AND ldt.LaborNote NOT LIKE ('%DMR%') AND (ldt.LaborQty + ldt.ScrapQty + ldt.DiscrepQty) > 0 
+WHERE jo.JobNum = 'NV15035' AND jo.OpCode IN ('SWISS', 'CNC') AND ldt.LaborNote <> 'Adjustment' AND ldt.LaborNote NOT LIKE ('%DMR%') AND ldt.LaborQty > 0 
 AND ldt.Shift IN (1,2) AND ldt.ReWork = 0) src
 GROUP BY src.JobNum

@@ -127,7 +127,52 @@ End Function
 '               MeasurLink
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 
+'see how this can be called recursively??
+Function SanityTest()
+    Call Init_Connections
 
+    Set fso = New FileSystemObject
+
+    Set sqlCommand = New ADODB.Command
+    With sqlCommand
+        .ActiveConnection = ML7DataBaseConnection
+        .CommandType = adCmdText
+        .CommandText = fso.OpenTextFile(DataSources.QUERIES_PATH & "ParameterSanityTest.sql").ReadAll
+        
+        Dim params() As Variant
+        params = Array("r.RunName", "rt.RoutineName")
+        Dim values() As Variant
+        values = Array("SD1284", "DRW-00717-01_RAJ_IP_IXSHIFT")
+        
+        For i = 0 To 3
+            Dim partParam As ADODB.Parameter
+            Set partParam = .CreateParameter(Name:=params(i Mod 2), Type:=adVarChar, Size:=255, Direction:=adParamInput, Value:=values(i Mod 2))
+            .Parameters.Append partParam
+        Next i
+
+    End With
+
+    Set sqlRecordSet = New ADODB.Recordset
+    sqlRecordSet.CursorLocation = adUseClient
+    sqlRecordSet.Open Source:=sqlCommand, CursorType:=adOpenStatic
+    
+
+    If Not sqlRecordSet.EOF Then
+        While Not sqlRecordSet.EOF
+            With sqlRecordSet
+                Debug.Print (.Fields(0).Value & vbTab & .Fields(1).Value & vbTab & .Fields(2).Value)
+            End With
+        
+            sqlRecordSet.MoveNext
+            
+        Wend
+        
+        
+    End If
+
+End Function
+
+' This and the function below it need to be compressed
 Function GetPartRoutineList(partNum As String, Revision As String) As ADODB.Recordset
     Call Init_Connections
 
