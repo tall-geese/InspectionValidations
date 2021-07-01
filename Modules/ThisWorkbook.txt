@@ -10,7 +10,7 @@ Attribute VB_Exposed = True
 
 
 
-Sub populateHeaders(jobNum As String, routine As Variant, customer As String, machine As String, partNum As String, rev As String, partDesc As String)
+Sub populateJobHeaders(jobNum As String, routine As Variant, customer As String, machine As String, partNum As String, rev As String, partDesc As String)
     With Worksheets("PAGE 1")
         .Unprotect Password:="3063bqa"
         
@@ -23,10 +23,169 @@ Sub populateHeaders(jobNum As String, routine As Variant, customer As String, ma
         .Range("G4").Value = partDesc
         
         
-        .Protect Password:="3063bqa", AllowFormattingCells:=True
+        .protect Password:="3063bqa", AllowFormattingCells:=True
     
     
     End With
+
+End Sub
+
+Public Sub populateReport(featureInfo() As Variant, featureMeasurements() As Variant, featureTraceability() As Variant)
+
+    If (Not featureInfo) = -1 Or (Not featureMeasurements) = -1 Then Exit Sub
+    
+    Application.ScreenUpdating = False
+    
+    Call Cleanup
+    
+    Dim applicablePages As Integer
+    applicablePages = Application.WorksheetFunction.Floor(UBound(featureInfo, 2) / 8, 1) + 1
+    
+    For i = 1 To applicablePages
+        ThisWorkbook.Worksheets("PAGE " & i).Unprotect Password:="3063bqa"
+        ThisWorkbook.Worksheets("PAGE " & i).Visible = True
+    Next i
+    
+    Call populateHeaderFeatureInfo(featureInfo:=featureInfo)
+    Call populateFeatureMeasuredValues(featureMeasurements:=featureMeasurements)
+    Call populateTraceabilityInfo(featureTraceabilityInfo:=featureTraceability, pages:=applicablePages)
+    
+    
+
+    
+    
+    For i = 1 To applicablePages
+        ThisWorkbook.Worksheets("PAGE " & i).protect Password:="3063bqa"
+    Next i
+
+    Application.ScreenUpdating = True
+
+End Sub
+
+Private Sub populateHeaderFeatureInfo(featureInfo() As Variant)
+    
+    For i = 0 To UBound(featureInfo, 2)
+            Dim activePageNum As Integer
+            activePageNum = Application.WorksheetFunction.Floor(i / 8, 1) + 1
+            
+            With ThisWorkbook.Worksheets("PAGE " & activePageNum)
+                Dim colLetter As String
+                colLetter = GetAddress((i Mod 8) + 5)
+                
+                'TODO: This should be formatted
+                .Range(colLetter & "9").Value = featureInfo(0, i) 'Balloon
+                .Range(colLetter & "10").Value = featureInfo(1, i) 'Description
+                
+                If featureInfo(6, i) = "Variable" Then
+                    .Range(colLetter & "16").Value = featureInfo(2, i) 'LTol
+                    .Range(colLetter & "17").Value = featureInfo(3, i) 'Target
+                    .Range(colLetter & "18").Value = featureInfo(4, i) 'UTol
+                Else
+                    .Range(colLetter & "16").Value = "N/A" 'LTol
+                    .Range(colLetter & "17").Value = "N/A" 'Target
+                    .Range(colLetter & "18").Value = "N/A" 'UTol
+                
+                End If
+                
+                .Range(colLetter & "19").Value = featureInfo(5, i) 'Gauge
+            End With
+    
+    Next i
+    
+End Sub
+
+Private Sub populateFeatureMeasuredValues(featureMeasurements() As Variant)
+    
+    For i = 0 To UBound(featureMeasurements, 1)
+            If i = 0 Then GoTo NextIteration
+            Dim activePageNum As Integer
+            activePageNum = Application.WorksheetFunction.Floor((i - 1) / 8, 1) + 1
+
+            With ThisWorkbook.Worksheets("PAGE " & activePageNum)
+                Dim colLetter As String
+                colLetter = GetAddress(((i - 1) Mod 8) + 5)
+                
+                For j = 0 To UBound(featureMeasurements, 2)
+                    .Range(colLetter & (j + 22)).Value = featureMeasurements(i, j)
+                Next j
+
+            End With
+
+NextIteration:
+    Next i
+
+End Sub
+
+Private Sub populateTraceabilityInfo(featureTraceabilityInfo() As Variant, pages As Integer)
+
+    'featureTraceabilityInfo(0,j) -> Date
+    'featureTraceabilityInfo(0,j) -> EmployeeID
+    'featureTraceabilityInfo(0,j) -> Observation Number
+    'featureTraceabilityInfo(0,j) -> "Pass" / "Fail"
+
+    For i = 1 To pages
+        With ThisWorkbook.Worksheets("PAGE " & i)
+            For j = 0 To UBound(featureTraceabilityInfo, 2)
+                'TODO: something here about setting the text red if the feature is "FAIL"
+                .Range("A" & j + 22).Value = featureTraceabilityInfo(0, j)
+                .Range("C" & j + 22).Value = featureTraceabilityInfo(1, j)
+                If IsNull(featureTraceabilityInfo(1, j)) Then
+                    Debug.Print ("yup, its null")
+                End If
+                
+            Next j
+        End With
+    
+    
+    Next i
+
+
+
+End Sub
+
+
+Private Sub Cleanup()
+
+    
+    
+    For i = 1 To 20
+        With ThisWorkbook.Worksheets("PAGE " & i)
+            If .Visible = True Then
+                .Activate
+                .Unprotect Password:="3063bqa"
+            
+                'Clean Data/Employee Information
+                With Range("A22:C121")
+                    .Value = ""
+                    .Interior.Color = RGB(255, 255, 255)
+                    .Font.Color = RGB(0, 0, 0)
+                End With
+                
+                With Range("E22:L121")
+                    .Value = ""
+                    .Interior.Color = RGB(255, 255, 255)
+                    .Font.Color = RGB(0, 0, 0)
+                End With
+                
+                With Range("E9:L19")
+                    .Value = ""
+                    .Interior.Color = RGB(255, 255, 255)
+                    .Font.Color = RGB(0, 0, 0)
+                End With
+                
+                .protect Password:="3063bqa"
+                
+                If .Name <> "PAGE 1" Then
+                    .Visible = False
+                End If
+            End If
+            
+        End With
+    Next i
+    
+    ThisWorkbook.Worksheets("PAGE 1").Activate
+    
+    
 
 End Sub
 
@@ -34,16 +193,23 @@ End Sub
 'test checking if the first two characters are numeric
 
 
-Sub testChars()
-    Dim test As String
+Sub settingTheFormat()
+    Dim ws As Worksheet
+    For Each ws In ThisWorkbook.Worksheets
+        If ws.Name <> "PAGE 1" Then
+            ws.Visible = False
+            ws.protect Password:="3063bqa"
     
-    test = "N"
-    Debug.Print (Mid(test, 2, 1))
-    
-    If Len(test) > 2 And Not IsNumeric(Left(test, 1)) And Not IsNumeric(Mid(test, 2, 1)) Then
-        MsgBox ("yup, nuumbers")
-    
-    End If
-
+        End If
+        
+    Next ws
 
 End Sub
+
+
+Function GetAddress(column As Long) As String
+    Dim vArr
+    vArr = Split(Cells(1, column).Address(True, False), "$")
+    GetAddress = vArr(0)
+
+End Function

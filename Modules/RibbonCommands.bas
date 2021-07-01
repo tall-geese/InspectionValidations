@@ -9,6 +9,7 @@ Attribute VB_Name = "RibbonCommands"
 '       3. we should ask the DataBase Module to perform our check on whether a jobNumber actually exists and is valid
 '*************************************************************************************************
 
+Dim editTextUcase As String
 Dim customer As String
 Dim partNum As String
 Dim rev As String
@@ -16,11 +17,16 @@ Dim machine As String
 Dim cell As String
 Dim partDesc As String
 
+
+Dim featureHeaderInfo() As Variant
+Dim featureMeasuredValues() As Variant
+Dim featureTraceabilityInfo() As Variant
+
 Dim cusRibbon As IRibbonUI
 
 Dim toggAutoForm_Pressed As Boolean
 
-Dim editTextUcase As String
+
 
 Dim partRoutineList() As Variant
 
@@ -77,8 +83,8 @@ Public Sub jbEditText_onGetText(ByRef control As IRibbonControl, ByRef Text)
     
     
     'Ask the workbook to Add the Information to Header Fields
-    Call ThisWorkbook.populateHeaders(jobNum:=editTextUcase, routine:=rtCombo_TextField, customer:=customer, machine:=machine, partNum:=partNum, rev:=rev, partDesc:=partDesc)
-    ', rev:=rev, description:=partDescription
+    Call ThisWorkbook.populateJobHeaders(jobNum:=editTextUcase, routine:=rtCombo_TextField, customer:=customer, machine:=machine, partNum:=partNum, rev:=rev, partDesc:=partDesc)
+    Call ThisWorkbook.populateReport(featureInfo:=featureHeaderInfo, featureMeasurements:=featureMeasuredValues, featureTraceability:=featureTraceabilityInfo)
     
 End Sub
 
@@ -99,8 +105,12 @@ Public Sub jbEditText_OnChange(ByRef control As Office.IRibbonControl, ByRef Tex
     machine = vbNullString
     cell = vbNullString
     partDesc = vbNullString
+    
     Erase partRoutineList
     Erase runRoutineList
+    Erase featureHeaderInfo
+    Erase featureMeasuredValues
+    Erase featureTraceabilityInfo
     
     If Text = vbNullString Then GoTo 10
     
@@ -132,6 +142,12 @@ Public Sub jbEditText_OnChange(ByRef control As Office.IRibbonControl, ByRef Tex
             Case Else
                 'Todo: Handle we don't know what the setupType is.
         End Select
+        
+        featureHeaderInfo = DatabaseModule.GetFeatureHeaderInfo(jobNum:=editTextUcase, routine:=rtCombo_TextField)
+        featureMeasuredValues = DatabaseModule.GetFeatureMeasuredValues(jobNum:=editTextUcase, routine:=rtCombo_TextField, _
+                                                features:=JoinPivotFeatures(featureHeaderInfo))
+        featureTraceabilityInfo = DatabaseModule.GetFeatureTraceabilityData(jobNum:=editTextUcase, routine:=rtCombo_TextField)
+
         
 
     Else
@@ -172,6 +188,15 @@ Public Sub rtCombo_OnChange(ByRef control As Office.IRibbonControl, ByRef Text A
                 validChange = True
                 lblStatus_Text = runRoutineList(1, i)
                 rtCombo_TextField = Text
+                
+                Erase featureMeasuredValues
+                Erase featureHeaderInfo
+                Erase featureTraceabilityInfo
+                
+                featureHeaderInfo = GetFeatureHeaderInfo(jobNum:=editTextUcase, routine:=rtCombo_TextField)
+                featureMeasuredValues = DatabaseModule.GetFeatureMeasuredValues(jobNum:=editTextUcase, routine:=rtCombo_TextField, _
+                                                features:=JoinPivotFeatures(featureHeaderInfo))
+                featureTraceabilityInfo = DatabaseModule.GetFeatureTraceabilityData(jobNum:=editTextUcase, routine:=rtCombo_TextField)
                 
                 'TODO: currently commenting this out, hoping that we can populate the headers exclusively with jbEditText_OnGetText()
                 
@@ -284,21 +309,15 @@ Public Sub chkNone_OnGetPressed(ByRef control As IRibbonControl, ByRef pressed A
 End Sub
 
 
-Function testEmpty(Optional something As Variant)
-    If IsMissing(a) Then
-        MsgBox ("its missing")
-    End If
-
+Function JoinPivotFeatures(featureHeaderInfo() As Variant) As String
+    Dim paramFeatures() As String
+    ReDim Preserve paramFeatures(UBound(featureHeaderInfo, 2))
+    For i = 0 To UBound(featureHeaderInfo, 2)
+        paramFeatures(i) = "[" & featureHeaderInfo(0, i) & "]"
+    Next i
+    
+    JoinPivotFeatures = Join(paramFeatures, ",")
 
 End Function
-
-
-Sub test()
-    Dim a As String
-    a = ""
-    testEmpty (a)
-
-
-End Sub
 
 

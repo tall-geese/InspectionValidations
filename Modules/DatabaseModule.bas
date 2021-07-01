@@ -45,6 +45,10 @@ Err_Conn:
 
 End Sub
 
+
+
+
+
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 '               Epicor
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
@@ -92,43 +96,16 @@ Function GetJobInformation(JobID As String, Optional ByRef partNum As Variant, O
     GetJobInformation = False
 End Function
 
-''TODO: gotta finish as test this
-'Function GetCustomerFromProject(jobNum As String) As String
-'    Call Init_Connections
-'
-'    Set fso = New FileSystemObject
-'
-'    Set sqlCommand = New ADODB.Command
-'    With sqlCommand
-'        .ActiveConnection = E10DataBaseConnection
-'        .CommandType = adCmdText
-'        .CommandText = fso.OpenTextFile(DataSources.QUERIES_PATH & "ProjectCusName.sql").ReadAll
-'
-'        Dim partParam As ADODB.Parameter
-'        Set partParam = .CreateParameter(Name:="jh.JobNum", Type:=adVarChar, Size:=14, Direction:=adParamInput, Value:=jobNum)
-'        .Parameters.Append partParam
-'    End With
-'
-'    Set sqlRecordSet = New ADODB.Recordset
-'    sqlRecordSet.CursorLocation = adUseClient
-'    sqlRecordSet.Open Source:=sqlCommand, CursorType:=adOpenStatic
-'
-'
-'    If Not sqlRecordSet.EOF And sqlRecordSet.RecordCount = 1 Then
-'        GetCustomerFromProject = sqlRecordSet.Fields(0).Value
-'        Exit Function
-'    End If
-'
-'    'TODO: Error here, couldn't find the customer name
-'    GetCustomerFromProject = vbNullString
-'End Function
+
+
+
 
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 '               MeasurLink
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 
-'see how this can be called recursively??
-Function SanityTest()
+' Retrieve the Header Information for the Features applicable to our Run and Routine
+Function GetFeatureHeaderInfo(jobNum As String, routine As String) As Variant()
     Call Init_Connections
 
     Set fso = New FileSystemObject
@@ -137,13 +114,48 @@ Function SanityTest()
     With sqlCommand
         .ActiveConnection = ML7DataBaseConnection
         .CommandType = adCmdText
-        .CommandText = fso.OpenTextFile(DataSources.QUERIES_PATH & "ParameterSanityTest.sql").ReadAll
+        .CommandText = fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_FeatureHeaderInfo.sql").ReadAll
+        
+        
+        Dim partParam As ADODB.Parameter
+        Set partParam = .CreateParameter(Name:="r.RunName", Type:=adVarChar, Size:=255, Direction:=adParamInput, Value:=jobNum)
+        Dim partParam2 As ADODB.Parameter
+        Set partParam2 = .CreateParameter(Name:="rt.RoutineName", Type:=adVarChar, Size:=255, Direction:=adParamInput, Value:=routine)
+        
+        .Parameters.Append partParam
+        .Parameters.Append partParam2
+
+    End With
+
+    Set sqlRecordSet = New ADODB.Recordset
+    sqlRecordSet.CursorLocation = adUseClient
+    sqlRecordSet.Open Source:=sqlCommand, CursorType:=adOpenStatic
+    
+
+    If Not sqlRecordSet.EOF Then
+        GetFeatureHeaderInfo = sqlRecordSet.GetRows()
+        Exit Function
+    End If
+
+End Function
+
+
+Function GetFeatureMeasuredValues(jobNum As String, routine As String, features As String) As Variant()
+    Call Init_Connections
+
+    Set fso = New FileSystemObject
+
+    Set sqlCommand = New ADODB.Command
+    With sqlCommand
+        .ActiveConnection = ML7DataBaseConnection
+        .CommandType = adCmdText
+        .CommandText = Replace(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_FeatureMeasurements.sql").ReadAll, "{Features}", features)
         
         Dim params() As Variant
         params = Array("r.RunName", "rt.RoutineName")
         Dim values() As Variant
-        values = Array("SD1284", "DRW-00717-01_RAJ_IP_IXSHIFT")
-        
+        values = Array(jobNum, routine)
+
         For i = 0 To 3
             Dim partParam As ADODB.Parameter
             Set partParam = .CreateParameter(Name:=params(i Mod 2), Type:=adVarChar, Size:=255, Direction:=adParamInput, Value:=values(i Mod 2))
@@ -158,19 +170,96 @@ Function SanityTest()
     
 
     If Not sqlRecordSet.EOF Then
-        While Not sqlRecordSet.EOF
-            With sqlRecordSet
-                Debug.Print (.Fields(0).Value & vbTab & .Fields(1).Value & vbTab & .Fields(2).Value)
-            End With
-        
-            sqlRecordSet.MoveNext
-            
-        Wend
-        
-        
+        GetFeatureMeasuredValues = sqlRecordSet.GetRows()
+        Exit Function
     End If
 
 End Function
+
+
+Function GetFeatureTraceabilityData(jobNum As String, routine As String) As Variant()
+    Call Init_Connections
+
+    Set fso = New FileSystemObject
+
+    Set sqlCommand = New ADODB.Command
+    With sqlCommand
+        .ActiveConnection = ML7DataBaseConnection
+        .CommandType = adCmdText
+        .CommandText = fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_ObsTraceability.sql").ReadAll
+        
+        Dim params() As Variant
+        params = Array("r.RunName", "rt.RoutineName")
+        Dim values() As Variant
+        values = Array(jobNum, routine)
+
+        For i = 0 To 3
+            Dim partParam As ADODB.Parameter
+            Set partParam = .CreateParameter(Name:=params(i Mod 2), Type:=adVarChar, Size:=255, Direction:=adParamInput, Value:=values(i Mod 2))
+            .Parameters.Append partParam
+        Next i
+
+    End With
+
+    Set sqlRecordSet = New ADODB.Recordset
+    sqlRecordSet.CursorLocation = adUseClient
+    sqlRecordSet.Open Source:=sqlCommand, CursorType:=adOpenStatic
+    
+
+    If Not sqlRecordSet.EOF Then
+        GetFeatureTraceabilityData = sqlRecordSet.GetRows()
+        Debug.Print ("stopping here")
+        Exit Function
+    End If
+
+End Function
+
+
+
+'see how this can be called recursively??
+'Function SanityTest()
+'    Call Init_Connections
+'
+'    Set fso = New FileSystemObject
+'
+'    Set sqlCommand = New ADODB.Command
+'    With sqlCommand
+'        .ActiveConnection = ML7DataBaseConnection
+'        .CommandType = adCmdText
+'        .CommandText = fso.OpenTextFile(DataSources.QUERIES_PATH & "ParameterSanityTest.sql").ReadAll
+'
+'        Dim params() As Variant
+'        params = Array("r.RunName", "rt.RoutineName")
+'        Dim values() As Variant
+'        values = Array("SD1284", "DRW-00717-01_RAJ_IP_IXSHIFT")
+'
+'        For i = 0 To 3
+'            Dim partParam As ADODB.Parameter
+'            Set partParam = .CreateParameter(Name:=params(i Mod 2), Type:=adVarChar, Size:=255, Direction:=adParamInput, Value:=values(i Mod 2))
+'            .Parameters.Append partParam
+'        Next i
+'
+'    End With
+'
+'    Set sqlRecordSet = New ADODB.Recordset
+'    sqlRecordSet.CursorLocation = adUseClient
+'    sqlRecordSet.Open Source:=sqlCommand, CursorType:=adOpenStatic
+'
+'
+'    If Not sqlRecordSet.EOF Then
+'        While Not sqlRecordSet.EOF
+'            With sqlRecordSet
+'                Debug.Print (.Fields(0).Value & vbTab & .Fields(1).Value & vbTab & .Fields(2).Value)
+'            End With
+'
+'            sqlRecordSet.MoveNext
+'
+'        Wend
+'
+'
+'    End If
+'
+'End Function
 
 ' This and the function below it need to be compressed
 Function GetPartRoutineList(partNum As String, Revision As String) As ADODB.Recordset

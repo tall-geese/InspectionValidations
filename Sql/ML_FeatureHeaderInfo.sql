@@ -3,7 +3,7 @@
 --BALLOON (must be formatted), Description, LowerTolerance, Target, UpperTolerance, GaugeID 
 --We CAN'T have a float tolerance limit and something like 'N/A' in the same column,
 	--gotta switch the logic based on the Type
-SELECT f.FeatureName, cfv.ValueString, COALESCE(fpr.LowerToleranceLimit,0)[LowerTolerance], COALESCE(fpr.Target,0)[Target], 
+SELECT DISTINCT f.FeatureName, cfv.ValueString, COALESCE(fpr.LowerToleranceLimit,0)[LowerTolerance], COALESCE(fpr.Target,0)[Target], 
 		COALESCE(fpr.UpperToleranceLimit,0)[UpperTolerance], g.GageName, 
 		CASE
 			WHEN fpr.Target IS NULL THEN 'Attribute'
@@ -17,4 +17,4 @@ LEFT OUTER JOIN MeasurLink7.dbo.FeatureProperties fpr ON f.FeatureID = fpr.Featu
 LEFT OUTER JOIN MeasurLink7.dbo.DataGageTracking dgt ON f.FeatureID = dgt.FeatureID AND r.RunID = dgt.RunID
 LEFT OUTER JOIN MeasurLink7.dbo.Gage g ON dgt.GageID = g.GageID 
 LEFT OUTER JOIN MeasurLink7.dbo.CustomFieldValue cfv ON f.FeatureID = cfv.ApplyToID
-WHERE r.RunName = 'SD1284' AND rt.RoutineName = 'DRW-00717-01_RAJ_IP_IXSHIFT' AND cfv.CustomFieldID = 16
+WHERE r.RunName = ? AND rt.RoutineName = ? AND cfv.CustomFieldID = 16 AND dgt.StartObsID = 1
