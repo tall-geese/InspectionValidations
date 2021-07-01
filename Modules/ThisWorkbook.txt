@@ -50,8 +50,9 @@ Public Sub populateReport(featureInfo() As Variant, featureMeasurements() As Var
     Call populateFeatureMeasuredValues(featureMeasurements:=featureMeasurements)
     Call populateTraceabilityInfo(featureTraceabilityInfo:=featureTraceability, pages:=applicablePages)
     
+    'TODO: this sub should reference the status of the toggle button to determine whether or not we should call this function
+    If Not RibbonCommands.toggShowAllObs Then Call RemoveFailedObservations(applicablePages:=applicablePages)
     
-
     
     
     For i = 1 To applicablePages
@@ -88,6 +89,7 @@ Private Sub populateHeaderFeatureInfo(featureInfo() As Variant)
                 End If
                 
                 .Range(colLetter & "19").Value = featureInfo(5, i) 'Gauge
+                .Range(colLetter & "8").Value = featureInfo(6, i) 'Variable / Attribute
             End With
     
     Next i
@@ -106,7 +108,18 @@ Private Sub populateFeatureMeasuredValues(featureMeasurements() As Variant)
                 colLetter = GetAddress(((i - 1) Mod 8) + 5)
                 
                 For j = 0 To UBound(featureMeasurements, 2)
-                    .Range(colLetter & (j + 22)).Value = featureMeasurements(i, j)
+                    'We store a hidden value for Attribute/Variable in the 8th row
+                    'If the returned value on an attribute dimension is 1, then it is a failure
+                    If .Range(colLetter & "8").Value = "Attribute" Then
+                        If featureMeasurements(i, j) = 0 Then
+                            .Range(colLetter & (j + 22)).Value = "Pass"
+                        Else
+                            .Range(colLetter & (j + 22)).Value = "Fail"
+                        End If
+                    Else
+                        'Otherwise its variable, just set the value
+                        .Range(colLetter & (j + 22)).Value = featureMeasurements(i, j)
+                    End If
                 Next j
 
             End With
@@ -119,9 +132,9 @@ End Sub
 Private Sub populateTraceabilityInfo(featureTraceabilityInfo() As Variant, pages As Integer)
 
     'featureTraceabilityInfo(0,j) -> Date
-    'featureTraceabilityInfo(0,j) -> EmployeeID
-    'featureTraceabilityInfo(0,j) -> Observation Number
-    'featureTraceabilityInfo(0,j) -> "Pass" / "Fail"
+    'featureTraceabilityInfo(1,j) -> EmployeeID
+    'featureTraceabilityInfo(2,j) -> Observation Number
+    'featureTraceabilityInfo(3,j) -> "Pass" / "Fail"
 
     For i = 1 To pages
         With ThisWorkbook.Worksheets("PAGE " & i)
@@ -129,8 +142,22 @@ Private Sub populateTraceabilityInfo(featureTraceabilityInfo() As Variant, pages
                 'TODO: something here about setting the text red if the feature is "FAIL"
                 .Range("A" & j + 22).Value = featureTraceabilityInfo(0, j)
                 .Range("C" & j + 22).Value = featureTraceabilityInfo(1, j)
+                
+                'We don't always get a value for the employeeID. So if the value we found is Null, then
+                'set it to the value of the cell that we found above.
+                'This works because we always have an employeeID for at least the first observation.
                 If IsNull(featureTraceabilityInfo(1, j)) Then
-                    Debug.Print ("yup, its null")
+                    .Range("C" & j + 22).Value = .Range("C" & j + 21).Value
+                Else
+                    .Range("C" & j + 22).Value = featureTraceabilityInfo(1, j)
+                End If
+                
+                'If we detected a failure, set the background as red to indicate that
+                'we'll use this later to conditionally remove inspections if we don't have ShowAllObservations Toggled
+                If featureTraceabilityInfo(3, j) = "Fail" Then
+                    .Range("A" & j + 22 & ":" & "C" & j + 22).Interior.Color = RGB(255, 102, 102)
+                    .Range("E" & j + 22 & ":" & "L" & j + 22).Interior.Color = RGB(255, 102, 102)
+                
                 End If
                 
             Next j
@@ -146,8 +173,6 @@ End Sub
 
 Private Sub Cleanup()
 
-    
-    
     For i = 1 To 20
         With ThisWorkbook.Worksheets("PAGE " & i)
             If .Visible = True Then
@@ -167,7 +192,7 @@ Private Sub Cleanup()
                     .Font.Color = RGB(0, 0, 0)
                 End With
                 
-                With Range("E9:L19")
+                With Range("E8:L19")
                     .Value = ""
                     .Interior.Color = RGB(255, 255, 255)
                     .Font.Color = RGB(0, 0, 0)
@@ -190,9 +215,18 @@ Private Sub Cleanup()
 End Sub
 
 
-'test checking if the first two characters are numeric
 
 
+
+Function GetAddress(column As Long) As String
+    Dim vArr
+    vArr = Split(Cells(1, column).Address(True, False), "$")
+    GetAddress = vArr(0)
+
+End Function
+
+
+'Open/Close the pages for verification
 Sub settingTheFormat()
     Dim ws As Worksheet
     For Each ws In ThisWorkbook.Worksheets
@@ -207,9 +241,55 @@ Sub settingTheFormat()
 End Sub
 
 
-Function GetAddress(column As Long) As String
-    Dim vArr
-    vArr = Split(Cells(1, column).Address(True, False), "$")
-    GetAddress = vArr(0)
+Private Sub RemoveFailedObservations(applicablePages As Integer)
+    For i = 1 To applicablePages
+        With ThisWorkbook.Worksheets("PAGE " & i)
+            
+            Dim initRow As Integer
+            initRow = 22
+        
+ResetLoop:
+            For Each cell In .Range("A" & initRow & ":C121")
+                If Not (cell.Interior.Color = vbWhite) Then
+                    initRow = cell.Row
+                    If cell.Offset(1, 0).Value = vbNullString Then
+                    
+                        'If the last row is a fail, set to "" and change the interior to ColorIndex 0, (vbWhite changes the borders on us)
+                        With .Range("A" & initRow & ":" & "C" & initRow)
+                            .Value = ""
+                            .Interior.ColorIndex = 0
+                        End With
+                        With .Range("E" & initRow & ":" & "L" & initRow)
+                            .Value = ""
+                            .Interior.ColorIndex = 0
+                        End With
+                    Else
+                        
+                        'Otherwise we Move up the Cells below
+                        'Traceability Cells
+                        Dim endRow As Integer
+                        endRow = .Range("A" & cell.Row).End(xlDown).Row
+                        
+                        
+                        .Range("A" & initRow & ":B" & endRow).UnMerge
+                        .Range("A" & initRow + 1 & ":C" & endRow).Copy Destination:=.Range("A" & initRow)
+                        .Range("A" & endRow & ":C" & endRow).Value = ""
+                        .Range("A" & initRow & ":B" & endRow).Merge Across:=True
+                        
+                        
+                        'Measurement Cells
+                        .Range("E" & initRow + 1 & ":L" & endRow).Copy Destination:=.Range("E" & initRow)
+                        .Range("E" & endRow & ":L" & endRow).Value = ""
+                        GoTo ResetLoop
+                    End If
+                    
+                End If
+            
+            Next cell
+        End With
+    Next i
 
-End Function
+End Sub
+
+
+

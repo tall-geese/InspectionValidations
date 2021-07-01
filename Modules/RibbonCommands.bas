@@ -25,7 +25,7 @@ Dim featureTraceabilityInfo() As Variant
 Dim cusRibbon As IRibbonUI
 
 Dim toggAutoForm_Pressed As Boolean
-
+Public toggShowAllObs As Boolean
 
 
 Dim partRoutineList() As Variant
@@ -155,6 +155,7 @@ Public Sub jbEditText_OnChange(ByRef control As Office.IRibbonControl, ByRef Tex
         editTextUcase = ""
     End If
 10
+    'TODO: set error handling here for us not holding refernce to the ribbon control anymore
     'Standard updates that are always applicable
     cusRibbon.InvalidateControl "chkFull"
     cusRibbon.InvalidateControl "chkMini"
@@ -268,7 +269,7 @@ End Sub
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 
 Public Sub allObs_Toggle(ByRef control As Office.IRibbonControl, ByRef isPressed As Boolean)
-    'TODO:
+    toggShowAllObs = isPressed
 End Sub
 
 
@@ -307,6 +308,10 @@ End Sub
 Public Sub chkNone_OnGetPressed(ByRef control As IRibbonControl, ByRef pressed As Variant)
     pressed = chkNone_Pressed
 End Sub
+
+
+
+
 
 
 Function JoinPivotFeatures(featureHeaderInfo() As Variant) As String
