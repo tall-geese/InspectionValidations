@@ -9,13 +9,16 @@ Attribute VB_Name = "RibbonCommands"
 '       3. we should ask the DataBase Module to perform our check on whether a jobNumber actually exists and is valid
 '*************************************************************************************************
 
-Dim editTextUcase As String
-Dim customer As String
-Dim partNum As String
-Dim rev As String
-Dim machine As String
-Dim cell As String
-Dim partDesc As String
+'Epicor Job Infor
+Dim jobNumUcase As String
+Public customer As String
+Public partNum As String
+Public rev As String
+Public machine As String
+Public cell As String
+Public partDesc As String
+Public drawNum As String
+Public prodQty As Integer
 
 
 Dim featureHeaderInfo() As Variant
@@ -28,17 +31,18 @@ Dim toggAutoForm_Pressed As Boolean
 Public toggShowAllObs As Boolean
 
 
-Dim partRoutineList() As Variant
+Public partRoutineList() As Variant
+Public runRoutineList() As Variant
 
 Dim lblStatus_Text As String
 
-Dim runRoutineList() As Variant
+
 Dim rtCombo_TextField As String
 Dim rtCombo_Enabled As Boolean
 
-Dim chkFull_Pressed As Boolean
-Dim chkMini_Pressed As Boolean
-Dim chkNone_Pressed As Boolean
+Public chkFull_Pressed As Boolean
+Public chkMini_Pressed As Boolean
+Public chkNone_Pressed As Boolean
 
 
 
@@ -58,8 +62,7 @@ End Sub
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 
 Public Sub Callback(ByRef control As Office.IRibbonControl)
-    sampleText = "try This out"
-    cusRibbon.InvalidateControl "jbEditText"
+    VettingForm.Show
 End Sub
 
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
@@ -79,18 +82,18 @@ End Sub
 '               Job Number EditTextField
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 Public Sub jbEditText_onGetText(ByRef control As IRibbonControl, ByRef Text)
-    Text = editTextUcase
+    Text = jobNumUcase
     
     
     'Ask the workbook to Add the Information to Header Fields
-    Call ThisWorkbook.populateJobHeaders(jobNum:=editTextUcase, routine:=rtCombo_TextField, customer:=customer, machine:=machine, partNum:=partNum, rev:=rev, partDesc:=partDesc)
+    Call ThisWorkbook.populateJobHeaders(jobNum:=jobNumUcase, routine:=rtCombo_TextField, customer:=customer, machine:=machine, partNum:=partNum, rev:=rev, partDesc:=partDesc)
     Call ThisWorkbook.populateReport(featureInfo:=featureHeaderInfo, featureMeasurements:=featureMeasuredValues, featureTraceability:=featureTraceabilityInfo)
     
 End Sub
 
 Public Sub jbEditText_OnChange(ByRef control As Office.IRibbonControl, ByRef Text As String)
     'Reset the Variables
-    editTextUcase = UCase(Text)
+    jobNumUcase = UCase(Text)
     chkFull_Pressed = False
     chkMini_Pressed = False
     chkNone_Pressed = False
@@ -117,14 +120,20 @@ Public Sub jbEditText_OnChange(ByRef control As Office.IRibbonControl, ByRef Tex
     Dim setupType As String
     
     If DatabaseModule.GetJobInformation(JobID:=Text, partNum:=partNum, rev:=rev, setupType:=setupType, machine:=machine, cell:=cell, _
-                                        partDescription:=partDesc) Then
+                                        partDescription:=partDesc, prodQty:=prodQty, drawNum:=drawNum) Then
     
-        customer = DatabaseModule.GetCustomerName(jobNum:=editTextUcase)
+        customer = DatabaseModule.GetCustomerName(jobNum:=jobNumUcase)
     
         On Error GoTo ML_NotApplicable:
         'TODO create two respective routine retrievals for both run and Part
-        runRoutineList = DatabaseModule.GetRunRoutineList(editTextUcase).GetRows()
+        tempRoutineArray = DatabaseModule.GetRunRoutineList(jobNumUcase).GetRows()
         partRoutineList = DatabaseModule.GetPartRoutineList(partNum, rev).GetRows()
+        
+        ReDim Preserve runRoutineList(2, UBound(tempRoutineArray, 2))
+        For i = 0 To UBound(tempRoutineArray, 2)
+            runRoutineList(0, i) = tempRoutineArray(0, i)
+            runRoutineList(1, i) = tempRoutineArray(1, i)
+        Next i
         
         'TODO: reset the error handling here, test with a 1/0 math
         
@@ -143,16 +152,24 @@ Public Sub jbEditText_OnChange(ByRef control As Office.IRibbonControl, ByRef Tex
                 'Todo: Handle we don't know what the setupType is.
         End Select
         
-        featureHeaderInfo = DatabaseModule.GetFeatureHeaderInfo(jobNum:=editTextUcase, routine:=rtCombo_TextField)
-        featureMeasuredValues = DatabaseModule.GetFeatureMeasuredValues(jobNum:=editTextUcase, routine:=rtCombo_TextField, _
+        featureHeaderInfo = DatabaseModule.GetFeatureHeaderInfo(jobNum:=jobNumUcase, routine:=rtCombo_TextField)
+        featureMeasuredValues = DatabaseModule.GetFeatureMeasuredValues(jobNum:=jobNumUcase, routine:=rtCombo_TextField, _
                                                 features:=JoinPivotFeatures(featureHeaderInfo))
-        featureTraceabilityInfo = DatabaseModule.GetFeatureTraceabilityData(jobNum:=editTextUcase, routine:=rtCombo_TextField)
+        featureTraceabilityInfo = DatabaseModule.GetFeatureTraceabilityData(jobNum:=jobNumUcase, routine:=rtCombo_TextField)
 
+        For i = 0 To UBound(runRoutineList, 2)
+            Dim routine As String
+            routine = runRoutineList(0, i)
+            Dim features() As Variant
+            features = DatabaseModule.GetFeatureHeaderInfo(jobNum:=jobNumUcase, routine:=routine)
+            runRoutineList(2, i) = UBound(DatabaseModule.GetFeatureMeasuredValues(jobNum:=jobNumUcase, routine:=routine, _
+                                                features:=JoinPivotFeatures(features)), 2) + 1
+        Next i
         
 
     Else
         MsgBox ("Not A Valid Job Number")
-        editTextUcase = ""
+        jobNumUcase = ""
     End If
 10
     'TODO: set error handling here for us not holding refernce to the ribbon control anymore
@@ -194,15 +211,15 @@ Public Sub rtCombo_OnChange(ByRef control As Office.IRibbonControl, ByRef Text A
                 Erase featureHeaderInfo
                 Erase featureTraceabilityInfo
                 
-                featureHeaderInfo = GetFeatureHeaderInfo(jobNum:=editTextUcase, routine:=rtCombo_TextField)
-                featureMeasuredValues = DatabaseModule.GetFeatureMeasuredValues(jobNum:=editTextUcase, routine:=rtCombo_TextField, _
+                featureHeaderInfo = GetFeatureHeaderInfo(jobNum:=jobNumUcase, routine:=rtCombo_TextField)
+                featureMeasuredValues = DatabaseModule.GetFeatureMeasuredValues(jobNum:=jobNumUcase, routine:=rtCombo_TextField, _
                                                 features:=JoinPivotFeatures(featureHeaderInfo))
-                featureTraceabilityInfo = DatabaseModule.GetFeatureTraceabilityData(jobNum:=editTextUcase, routine:=rtCombo_TextField)
+                featureTraceabilityInfo = DatabaseModule.GetFeatureTraceabilityData(jobNum:=jobNumUcase, routine:=rtCombo_TextField)
                 
                 'TODO: currently commenting this out, hoping that we can populate the headers exclusively with jbEditText_OnGetText()
                 
                 'We have to update the routine header here becuase selecting from the list won't call the OnGetText() event
-                'ThisWorkbook.populateHeaders jobNum:=editTextUcase, routine:=Text, customer:=DatabaseModule.GetCustomerName(editTextUcase)
+                'ThisWorkbook.populateHeaders jobNum:=jobNumUcase, routine:=Text, customer:=DatabaseModule.GetCustomerName(jobNumUcase)
             End If
         Next i
     End If
@@ -248,7 +265,7 @@ Public Sub rtCombo_OnGetText(ByRef control As Office.IRibbonControl, ByRef Text 
     
     'TODO: currently commenting this out, hoping that we can populate the headers exclusively with jbEditText_OnGetText()
         'Ask the workbook to Add the Information to Header Fields
-'    ThisWorkbook.populateHeaders jobNum:=editTextUcase, routine:=rtCombo_TextField
+'    ThisWorkbook.populateHeaders jobNum:=jobNumUcase, routine:=rtCombo_TextField
 
 End Sub
 

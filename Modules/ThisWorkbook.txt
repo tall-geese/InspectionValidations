@@ -51,7 +51,7 @@ Public Sub populateReport(featureInfo() As Variant, featureMeasurements() As Var
     Call populateTraceabilityInfo(featureTraceabilityInfo:=featureTraceability, pages:=applicablePages)
     
     'TODO: this sub should reference the status of the toggle button to determine whether or not we should call this function
-    If Not RibbonCommands.toggShowAllObs Then Call RemoveFailedObservations(applicablePages:=applicablePages)
+'    If Not RibbonCommands.toggShowAllObs Then Call RemoveFailedObservations(applicablePages:=applicablePages)
     
     
     
@@ -71,7 +71,7 @@ Private Sub populateHeaderFeatureInfo(featureInfo() As Variant)
             
             With ThisWorkbook.Worksheets("PAGE " & activePageNum)
                 Dim colLetter As String
-                colLetter = GetAddress((i Mod 8) + 5)
+                colLetter = ExcelHelpers.GetAddress((i Mod 8) + 5)
                 
                 'TODO: This should be formatted
                 .Range(colLetter & "9").Value = featureInfo(0, i) 'Balloon
@@ -105,7 +105,7 @@ Private Sub populateFeatureMeasuredValues(featureMeasurements() As Variant)
 
             With ThisWorkbook.Worksheets("PAGE " & activePageNum)
                 Dim colLetter As String
-                colLetter = GetAddress(((i - 1) Mod 8) + 5)
+                colLetter = ExcelHelpers.GetAddress(((i - 1) Mod 8) + 5)
                 
                 For j = 0 To UBound(featureMeasurements, 2)
                     'We store a hidden value for Attribute/Variable in the 8th row
@@ -217,41 +217,21 @@ End Sub
 
 
 
-
-Function GetAddress(column As Long) As String
-    Dim vArr
-    vArr = Split(Cells(1, column).Address(True, False), "$")
-    GetAddress = vArr(0)
-
-End Function
-
-
-'Open/Close the pages for verification
-Sub settingTheFormat()
-    Dim ws As Worksheet
-    For Each ws In ThisWorkbook.Worksheets
-        If ws.Name <> "PAGE 1" Then
-            ws.Visible = False
-            ws.protect Password:="3063bqa"
-    
-        End If
-        
-    Next ws
-
-End Sub
-
-
+'TODO: we prob dont need this anymore, instead of conditionally removing some dimensions based on the toggle button
+'we should use a different query to based on the state of the toggle button.
 Private Sub RemoveFailedObservations(applicablePages As Integer)
+    
     For i = 1 To applicablePages
         With ThisWorkbook.Worksheets("PAGE " & i)
             
             Dim initRow As Integer
             initRow = 22
         
+        Dim cell As Range
 ResetLoop:
             For Each cell In .Range("A" & initRow & ":C121")
                 If Not (cell.Interior.Color = vbWhite) Then
-                    initRow = cell.Row
+                    initRow = cell.row
                     If cell.Offset(1, 0).Value = vbNullString Then
                     
                         'If the last row is a fail, set to "" and change the interior to ColorIndex 0, (vbWhite changes the borders on us)
@@ -268,7 +248,7 @@ ResetLoop:
                         'Otherwise we Move up the Cells below
                         'Traceability Cells
                         Dim endRow As Integer
-                        endRow = .Range("A" & cell.Row).End(xlDown).Row
+                        endRow = .Range("A" & cell.row).End(xlDown).row
                         
                         
                         .Range("A" & initRow & ":B" & endRow).UnMerge

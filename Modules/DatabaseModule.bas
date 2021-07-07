@@ -56,7 +56,8 @@ End Sub
 Function GetJobInformation(JobID As String, Optional ByRef partNum As Variant, Optional ByRef rev As Variant, _
                                 Optional ByRef setupType As Variant, Optional ByRef custName As Variant, _
                                 Optional ByRef machine As Variant, Optional ByRef cell As Variant, _
-                                Optional ByRef partDescription As Variant) As Boolean
+                                Optional ByRef partDescription As Variant, Optional prodQty As Variant, _
+                                Optional ByRef drawNum As Variant) As Boolean
     Call Init_Connections
     Set fso = New FileSystemObject
 
@@ -89,6 +90,8 @@ Function GetJobInformation(JobID As String, Optional ByRef partNum As Variant, O
         If Not IsMissing(machine) Then machine = sqlRecordSet.Fields(6).Value
         If Not IsMissing(cell) Then cell = sqlRecordSet.Fields(7).Value
         If Not IsMissing(partDescription) Then partDescription = sqlRecordSet.Fields(8).Value
+        If Not IsMissing(prodQty) Then prodQty = sqlRecordSet.Fields(9).Value
+        If Not IsMissing(drawNum) Then drawNum = sqlRecordSet.Fields(10).Value
         GetJobInformation = True
         Exit Function
     End If
@@ -149,7 +152,9 @@ Function GetFeatureMeasuredValues(jobNum As String, routine As String, features 
     With sqlCommand
         .ActiveConnection = ML7DataBaseConnection
         .CommandType = adCmdText
-        .CommandText = Replace(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_FeatureMeasurements.sql").ReadAll, "{Features}", features)
+            'TODO: we need to later conditionally change which of the sql arrays we will be using depending on the toggle Button
+        .CommandText = Replace(Split(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_FeatureMeasurements.sql").ReadAll, ";")(0), "{Features}", features)
+'        .CommandText = Replace(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_FeatureMeasurements.sql").ReadAll, "{Features}", features)
         
         Dim params() As Variant
         params = Array("r.RunName", "rt.RoutineName")
@@ -208,7 +213,6 @@ Function GetFeatureTraceabilityData(jobNum As String, routine As String) As Vari
 
     If Not sqlRecordSet.EOF Then
         GetFeatureTraceabilityData = sqlRecordSet.GetRows()
-        Debug.Print ("stopping here")
         Exit Function
     End If
 
