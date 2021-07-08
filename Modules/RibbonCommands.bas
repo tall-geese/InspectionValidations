@@ -10,7 +10,7 @@ Attribute VB_Name = "RibbonCommands"
 '*************************************************************************************************
 
 'Epicor Job Infor
-Dim jobNumUcase As String
+Public jobNumUcase As String
 Public customer As String
 Public partNum As String
 Public rev As String
@@ -84,7 +84,6 @@ End Sub
 Public Sub jbEditText_onGetText(ByRef control As IRibbonControl, ByRef Text)
     Text = jobNumUcase
     
-    
     'Ask the workbook to Add the Information to Header Fields
     Call ThisWorkbook.populateJobHeaders(jobNum:=jobNumUcase, routine:=rtCombo_TextField, customer:=customer, machine:=machine, partNum:=partNum, rev:=rev, partDesc:=partDesc)
     Call ThisWorkbook.populateReport(featureInfo:=featureHeaderInfo, featureMeasurements:=featureMeasuredValues, featureTraceability:=featureTraceabilityInfo)
@@ -152,10 +151,7 @@ Public Sub jbEditText_OnChange(ByRef control As Office.IRibbonControl, ByRef Tex
                 'Todo: Handle we don't know what the setupType is.
         End Select
         
-        featureHeaderInfo = DatabaseModule.GetFeatureHeaderInfo(jobNum:=jobNumUcase, routine:=rtCombo_TextField)
-        featureMeasuredValues = DatabaseModule.GetFeatureMeasuredValues(jobNum:=jobNumUcase, routine:=rtCombo_TextField, _
-                                                features:=JoinPivotFeatures(featureHeaderInfo))
-        featureTraceabilityInfo = DatabaseModule.GetFeatureTraceabilityData(jobNum:=jobNumUcase, routine:=rtCombo_TextField)
+        Call SetVariabes
 
         For i = 0 To UBound(runRoutineList, 2)
             Dim routine As String
@@ -173,6 +169,8 @@ Public Sub jbEditText_OnChange(ByRef control As Office.IRibbonControl, ByRef Tex
     End If
 10
     'TODO: set error handling here for us not holding refernce to the ribbon control anymore
+
+    
     'Standard updates that are always applicable
     cusRibbon.InvalidateControl "chkFull"
     cusRibbon.InvalidateControl "chkMini"
@@ -211,11 +209,8 @@ Public Sub rtCombo_OnChange(ByRef control As Office.IRibbonControl, ByRef Text A
                 Erase featureHeaderInfo
                 Erase featureTraceabilityInfo
                 
-                featureHeaderInfo = GetFeatureHeaderInfo(jobNum:=jobNumUcase, routine:=rtCombo_TextField)
-                featureMeasuredValues = DatabaseModule.GetFeatureMeasuredValues(jobNum:=jobNumUcase, routine:=rtCombo_TextField, _
-                                                features:=JoinPivotFeatures(featureHeaderInfo))
-                featureTraceabilityInfo = DatabaseModule.GetFeatureTraceabilityData(jobNum:=jobNumUcase, routine:=rtCombo_TextField)
-                
+                Call SetVariabes
+                        
                 'TODO: currently commenting this out, hoping that we can populate the headers exclusively with jbEditText_OnGetText()
                 
                 'We have to update the routine header here becuase selecting from the list won't call the OnGetText() event
@@ -268,6 +263,8 @@ Public Sub rtCombo_OnGetText(ByRef control As Office.IRibbonControl, ByRef Text 
 '    ThisWorkbook.populateHeaders jobNum:=jobNumUcase, routine:=rtCombo_TextField
 
 End Sub
+
+
 
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 '               RunStatus Label
@@ -331,6 +328,33 @@ End Sub
 
 
 
+
+'****************************************************************************************
+'               Extra Functions
+'****************************************************************************************
+
+Public Sub IterPrintRoutines()
+    'rtCombo_TextField
+    'runRoutineList
+    For i = 0 To UBound(runRoutineList, 2)
+        rtCombo_TextField = runRoutineList(0, i)
+        lblStatus_Text = runRoutineList(1, i)
+        
+        Call SetVariabes
+        'Can't invalidate the editText control to update the info, we need to call this explicitly
+        Call ThisWorkbook.populateJobHeaders(jobNum:=jobNumUcase, routine:=rtCombo_TextField, customer:=customer, machine:=machine, partNum:=partNum, rev:=rev, partDesc:=partDesc)
+        Call ThisWorkbook.populateReport(featureInfo:=featureHeaderInfo, featureMeasurements:=featureMeasuredValues, featureTraceability:=featureTraceabilityInfo)
+
+        Call ThisWorkbook.PrintResults
+    Next i
+    
+    cusRibbon.InvalidateControl "rtCombo"
+    cusRibbon.InvalidateControl "jbEditText"
+    cusRibbon.InvalidateControl "lblStatus"
+    
+End Sub
+
+
 Function JoinPivotFeatures(featureHeaderInfo() As Variant) As String
     Dim paramFeatures() As String
     ReDim Preserve paramFeatures(UBound(featureHeaderInfo, 2))
@@ -341,5 +365,14 @@ Function JoinPivotFeatures(featureHeaderInfo() As Variant) As String
     JoinPivotFeatures = Join(paramFeatures, ",")
 
 End Function
+
+Private Sub SetVariabes()
+    featureHeaderInfo = DatabaseModule.GetFeatureHeaderInfo(jobNum:=jobNumUcase, routine:=rtCombo_TextField)
+    featureMeasuredValues = DatabaseModule.GetFeatureMeasuredValues(jobNum:=jobNumUcase, routine:=rtCombo_TextField, _
+                                            features:=JoinPivotFeatures(featureHeaderInfo))
+    featureTraceabilityInfo = DatabaseModule.GetFeatureTraceabilityData(jobNum:=jobNumUcase, routine:=rtCombo_TextField)
+
+
+End Sub
 
 

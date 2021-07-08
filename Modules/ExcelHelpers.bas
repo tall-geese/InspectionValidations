@@ -85,6 +85,7 @@ FileDirErr:
     Result = MsgBox("There was a problem opening an Inspection Report for " & vbCrLf & "Customer: " & customer & vbCrLf _
                 & "Drawing: " & vbTab & drawNum & vbCrLf & vbCrLf & "The customer name may be incorrect or the " _
                     & "Inspection Report may be named incorrectly, contact a QE", vbExclamation)
+    Exit Function
                     
 WbReadErr:
     Result = MsgBox("There was a problem when trying to read the AQL Level defined on the ML Frequency Chart Worksheet" & _
@@ -101,5 +102,60 @@ Public Function GetAddress(column As Integer) As String
     vArr = Split(Cells(1, column).Address(True, False), "$")
     GetAddress = vArr(0)
 
+End Function
+
+Public Sub CreateEmail(qcManager As Boolean, cellLead As Boolean, cellLeadEmail As String, jobNum As String, machine As String, failInfo() As Variant)
+    Dim oApp As Outlook.Application
+    Dim myMail As Outlook.MailItem
+    Dim HTMLContent As String
+    
+    Set oApp = New Outlook.Application
+    Set oMail = oApp.CreateItem(olMailItem)
+    
+    With oMail
+        .To = DataSources.PQCI_TO
+        If cellLead Then
+            .To = .To & ";" & cellLeadEmail
+        End If
+        If qcManager Then
+            .To = .To & ";" & DataSources.QCMAN_TO
+        End If
+        
+        .Subject = Replace(DataSources.EMAIL_SUBJECT, "{Job}", jobNum)
+        .Subject = Replace(.Subject, "{Machine}", machine)
+        
+        HTMLContent = DataSources.EMAIL_BODY_HEADER
+        
+        HTMLContent = HTMLContent & "<table class=" & Chr(34) & "MsoTableGrid" & Chr(34) & " border=" & Chr(34) & "1" & Chr(34) & " cellspacing=" & Chr(34) & _
+    "0" & Chr(34) & " cellpadding=" & Chr(34) & "0" & Chr(34) & " style=" & Chr(34) & "border-collapse:collapse;border:none" & Chr(34) & ">"
+        
+        HTMLContent = HTMLContent & "<td width=" & Chr(34) & "290" & Chr(34) & ">" & "Routine Name" & "</td>"
+        HTMLContent = HTMLContent & "<td width=" & Chr(34) & "100" & Chr(34) & ">" & "ObsReq" & "</td>"
+        HTMLContent = HTMLContent & "<td width=" & Chr(34) & "100" & Chr(34) & ">" & "ObsFound" & "</td>"
+    
+        For i = 0 To UBound(failInfo, 2)
+            HTMLContent = HTMLContent & "<tr>"
+            For j = 0 To 2
+               HTMLContent = HTMLContent & "<td>" & failInfo(j, i) & "</td>"
+            Next j
+            HTMLContent = HTMLContent & "</tr>"
+        Next i
+        
+        HTMLContent = HTMLContent & "</table>"
+        
+        HTMLContent = HTMLContent & DataSources.EMAIL_BODY_FOOTER
+        
+        .HTMLBody = HTMLContent
+    
+    End With
+    
+    oMail.Display
+    
+End Sub
+
+Function xTab(num As Integer) As String
+    For i = 1 To num
+        xTab = xTab & vbTab
+    Next i
 End Function
 

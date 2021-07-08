@@ -101,6 +101,39 @@ End Function
 
 
 
+Function Get1XSHIFTInsps(JobID As String) As String
+    Call Init_Connections
+    Set fso = New FileSystemObject
+
+    Set sqlCommand = New ADODB.Command
+    With sqlCommand
+        .ActiveConnection = E10DataBaseConnection
+        .CommandType = adCmdText
+        .CommandText = fso.OpenTextFile(DataSources.QUERIES_PATH & "1XSHIFT.sql").ReadAll
+                        
+        
+        Dim jobParam As ADODB.Parameter
+        Set jobParam = .CreateParameter(Name:="jo.JobNum", Type:=adVarChar, Size:=14, Direction:=adParamInput)
+        jobParam.Value = JobID
+        .Parameters.Append jobParam
+    End With
+        
+    Set sqlRecordSet = New ADODB.Recordset
+    sqlRecordSet.Open sqlCommand
+    
+    'If any rows at all were returned, we know that the job exists
+    If Not sqlRecordSet.EOF Then
+        Get1XSHIFTInsps = sqlRecordSet.Fields(1).Value
+        Exit Function
+    End If
+    
+    'TODO: otherwise alert the user that no labor qty has been accepted for this job
+
+    Get1XSHIFTInsps = "None"
+End Function
+
+
+
 
 
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
@@ -373,6 +406,37 @@ Function GetCustomerName(jobNum As String) As String
 
     'TODO: Error here, we don't can't find the customer name in our table, the QE should update the Database
     GetCustomerName = vbNullString
+
+End Function
+
+Function GetCellLeadEmail(cell As String) As String
+    Call Init_Connections
+
+20
+    Set sqlCommand = New ADODB.Command
+    With sqlCommand
+        .ActiveConnection = KioskDataBaseConnection
+        .CommandType = adCmdText
+        .CommandText = "SELECT Email FROM InspectionKiosk.dbo.VettingEmails WHERE Cell=?"
+
+        Dim partParam As ADODB.Parameter
+        Set partParam = .CreateParameter(Name:="Cell", Type:=adVarChar, Size:=255, Direction:=adParamInput, Value:=cell)
+        .Parameters.Append partParam
+    End With
+
+    Set sqlRecordSet = New ADODB.Recordset
+    sqlRecordSet.CursorLocation = adUseClient
+    sqlRecordSet.Open Source:=sqlCommand, CursorType:=adOpenStatic
+
+
+    If Not sqlRecordSet.EOF Then
+        GetCellLeadEmail = sqlRecordSet.Fields(0).Value
+        Exit Function
+    End If
+
+
+    'TODO: Error here, we don't can't find the customer name in our table, the QE should update the Database
+    GetCellLeadEmail = vbNullString
 
 End Function
 

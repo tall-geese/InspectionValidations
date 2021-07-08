@@ -214,6 +214,22 @@ Private Sub Cleanup()
 
 End Sub
 
+Public Sub PrintResults()
+
+    Dim endPage As Integer
+    endPage = CInt(Worksheets("PAGE 1").Range("L4").Value)
+    
+    For Each Sheet In Worksheets
+        'Defaults to printing to the ActivePrinter which the user can choose to set in the Settings tab,
+        'but by default this is their default printer
+        If Sheet.Visible = True Then
+            Sheet.Printout From:=1, To:=endPage, Collate:=True
+        End If
+    Next Sheet
+
+
+End Sub
+
 
 
 
