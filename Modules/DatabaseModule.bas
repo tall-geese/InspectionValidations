@@ -198,7 +198,16 @@ Function GetFeatureMeasuredValues(jobNum As String, routine As String, features 
         .CommandType = adCmdText
             'TODO: we need to later conditionally change which of the sql arrays we will be using depending on the toggle Button
         .CommandText = Replace(Split(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_FeatureMeasurements.sql").ReadAll, ";")(0), "{Features}", features)
-'        .CommandText = Replace(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_FeatureMeasurements.sql").ReadAll, "{Features}", features)
+        
+        'Pivoting leaves a gap in the measured feature set, we need to check each row to see if any of them are NULL
+        Dim whereClause() As String
+        whereClause = Split(features, ",")
+        For i = 0 To UBound(whereClause)
+            .CommandText = .CommandText & "src3." & whereClause(i) & " IS NOT NULL "
+            If i <> UBound(whereClause) Then
+                .CommandText = .CommandText & " AND "
+            End If
+        Next i
         
         Dim params() As Variant
         params = Array("r.RunName", "rt.RoutineName")
@@ -225,6 +234,44 @@ Function GetFeatureMeasuredValues(jobNum As String, routine As String, features 
 
 End Function
 
+Function GetAllFeatureMeasuredValues(jobNum As String, routine As String, features As String) As Variant()
+    Call Init_Connections
+
+    Set fso = New FileSystemObject
+
+    Set sqlCommand = New ADODB.Command
+    With sqlCommand
+        .ActiveConnection = ML7DataBaseConnection
+        .CommandType = adCmdText
+            'TODO: we need to later conditionally change which of the sql arrays we will be using depending on the toggle Button
+        .CommandText = Replace(Split(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_FeatureMeasurements.sql").ReadAll, ";")(1), "{Features}", features)
+'        .CommandText = Replace(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_FeatureMeasurements.sql").ReadAll, "{Features}", features)
+        
+        Dim params() As Variant
+        params = Array("r.RunName", "rt.RoutineName")
+        Dim values() As Variant
+        values = Array(jobNum, routine)
+
+        For i = 0 To 3
+            Dim partParam As ADODB.Parameter
+            Set partParam = .CreateParameter(Name:=params(i Mod 2), Type:=adVarChar, Size:=255, Direction:=adParamInput, Value:=values(i Mod 2))
+            .Parameters.Append partParam
+        Next i
+
+    End With
+
+    Set sqlRecordSet = New ADODB.Recordset
+    sqlRecordSet.CursorLocation = adUseClient
+    sqlRecordSet.Open Source:=sqlCommand, CursorType:=adOpenStatic
+    
+
+    If Not sqlRecordSet.EOF Then
+        GetAllFeatureMeasuredValues = sqlRecordSet.GetRows()
+        Exit Function
+    End If
+
+End Function
+
 
 Function GetFeatureTraceabilityData(jobNum As String, routine As String) As Variant()
     Call Init_Connections
@@ -235,7 +282,7 @@ Function GetFeatureTraceabilityData(jobNum As String, routine As String) As Vari
     With sqlCommand
         .ActiveConnection = ML7DataBaseConnection
         .CommandType = adCmdText
-        .CommandText = fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_ObsTraceability.sql").ReadAll
+        .CommandText = Split(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_ObsTraceability.sql").ReadAll, ";")(0)
         
         Dim params() As Variant
         params = Array("r.RunName", "rt.RoutineName")
@@ -257,6 +304,42 @@ Function GetFeatureTraceabilityData(jobNum As String, routine As String) As Vari
 
     If Not sqlRecordSet.EOF Then
         GetFeatureTraceabilityData = sqlRecordSet.GetRows()
+        Exit Function
+    End If
+
+End Function
+
+Function GetAllFeatureTraceabilityData(jobNum As String, routine As String) As Variant()
+    Call Init_Connections
+
+    Set fso = New FileSystemObject
+
+    Set sqlCommand = New ADODB.Command
+    With sqlCommand
+        .ActiveConnection = ML7DataBaseConnection
+        .CommandType = adCmdText
+        .CommandText = Split(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_ObsTraceability.sql").ReadAll, ";")(1)
+        
+        Dim params() As Variant
+        params = Array("r.RunName", "rt.RoutineName")
+        Dim values() As Variant
+        values = Array(jobNum, routine)
+
+        For i = 0 To 3
+            Dim partParam As ADODB.Parameter
+            Set partParam = .CreateParameter(Name:=params(i Mod 2), Type:=adVarChar, Size:=255, Direction:=adParamInput, Value:=values(i Mod 2))
+            .Parameters.Append partParam
+        Next i
+
+    End With
+
+    Set sqlRecordSet = New ADODB.Recordset
+    sqlRecordSet.CursorLocation = adUseClient
+    sqlRecordSet.Open Source:=sqlCommand, CursorType:=adOpenStatic
+    
+
+    If Not sqlRecordSet.EOF Then
+        GetAllFeatureTraceabilityData = sqlRecordSet.GetRows()
         Exit Function
     End If
 

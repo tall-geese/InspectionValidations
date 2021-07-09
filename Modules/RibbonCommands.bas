@@ -34,7 +34,7 @@ Dim cusRibbon As IRibbonUI
 
 Private toggAutoForm_Pressed As Boolean
 Public toggML7TestDB_Pressed As Boolean
-Public toggShowAllObs As Boolean
+Public toggShowAllObs_Pressed As Boolean
 
 Dim lblStatus_Text As String
 
@@ -71,7 +71,7 @@ End Sub
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 
 Public Sub allObs_Toggle(ByRef control As Office.IRibbonControl, ByRef isPressed As Boolean)
-    toggShowAllObs = isPressed
+    toggShowAllObs_Pressed = isPressed
 End Sub
 
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
@@ -389,9 +389,15 @@ End Function
 
 Private Sub SetVariabes()
     featureHeaderInfo = DatabaseModule.GetFeatureHeaderInfo(jobNum:=jobNumUcase, routine:=rtCombo_TextField)
-    featureMeasuredValues = DatabaseModule.GetFeatureMeasuredValues(jobNum:=jobNumUcase, routine:=rtCombo_TextField, _
-                                            features:=JoinPivotFeatures(featureHeaderInfo))
-    featureTraceabilityInfo = DatabaseModule.GetFeatureTraceabilityData(jobNum:=jobNumUcase, routine:=rtCombo_TextField)
+    If toggShowAllObs_Pressed Then
+        featureMeasuredValues = DatabaseModule.GetAllFeatureMeasuredValues(jobNum:=jobNumUcase, routine:=rtCombo_TextField, _
+                                                features:=JoinPivotFeatures(featureHeaderInfo))
+        featureTraceabilityInfo = DatabaseModule.GetAllFeatureTraceabilityData(jobNum:=jobNumUcase, routine:=rtCombo_TextField)
+    Else
+        featureMeasuredValues = DatabaseModule.GetFeatureMeasuredValues(jobNum:=jobNumUcase, routine:=rtCombo_TextField, _
+                                                features:=JoinPivotFeatures(featureHeaderInfo))
+        featureTraceabilityInfo = DatabaseModule.GetFeatureTraceabilityData(jobNum:=jobNumUcase, routine:=rtCombo_TextField)
+    End If
 
 End Sub
 
