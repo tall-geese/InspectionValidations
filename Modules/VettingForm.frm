@@ -93,8 +93,16 @@ Private Sub UserForm_Initialize()
                 Case "IP_EDM"
                     .Caption = RibbonCommands.prodQty
                     .Visible = True
-                Case "FI_DIM", "FI_VIS", "IP_LAST"
+                Case "FI_VIS", "IP_LAST"
                     .Caption = "1"
+                    .Visible = True
+                Case "FI_DIM"
+                    If DatabaseModule.IsAllAttribrute(routine:=RibbonCommands.partRoutineList(0, i)) Then
+                        .Caption = "1"
+                    Else
+                        .Caption = ExcelHelpers.GetAQL(customer:=RibbonCommands.customer, drawNum:=RibbonCommands.drawNum, _
+                                            prodQty:=RibbonCommands.prodQty)
+                    End If
                     .Visible = True
                 Case Else ''TODO: This is the placeholder for the AQL, but there might end up being other routines we missed
                     .Caption = ExcelHelpers.GetAQL(customer:=RibbonCommands.customer, drawNum:=RibbonCommands.drawNum, _

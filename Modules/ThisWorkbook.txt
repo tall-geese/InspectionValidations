@@ -11,6 +11,11 @@ Attribute VB_Exposed = True
 
 
 Sub populateJobHeaders(jobNum As String, routine As Variant, customer As String, machine As String, partNum As String, rev As String, partDesc As String)
+    
+    Call Cleanup
+    If IsEmpty(routine) Then Exit Sub
+        
+        
     With Worksheets("PAGE 1")
         .Unprotect Password:="3063bqa"
         
@@ -32,11 +37,10 @@ End Sub
 
 Public Sub populateReport(featureInfo() As Variant, featureMeasurements() As Variant, featureTraceability() As Variant)
 
+
     If (Not featureInfo) = -1 Or (Not featureMeasurements) = -1 Then Exit Sub
     
     Application.ScreenUpdating = False
-    
-    Call Cleanup
     
     Dim applicablePages As Integer
     applicablePages = Application.WorksheetFunction.Floor(UBound(featureInfo, 2) / 8, 1) + 1
@@ -170,8 +174,28 @@ Private Sub populateTraceabilityInfo(featureTraceabilityInfo() As Variant, pages
 
 End Sub
 
+'This is called somewhere else, fix this logic
+Public Sub Cleanup()
 
-Private Sub Cleanup()
+    Application.ScreenUpdating = False
+    
+    'Reset the Header information
+    With Worksheets("PAGE 1")
+        .Unprotect Password:="3063bqa"
+
+        .Range("C1").Value = ""
+        .Range("C2").Value = ""
+        .Range("C3").Value = ""
+        .Range("C4").Value = ""
+        .Range("G3").Value = ""
+        .Range("I3").Value = ""
+        .Range("G4").Value = ""
+
+
+        .protect Password:="3063bqa", AllowFormattingCells:=True
+
+
+    End With
 
     For i = 1 To 20
         With ThisWorkbook.Worksheets("PAGE " & i)
@@ -209,6 +233,8 @@ Private Sub Cleanup()
     Next i
     
     ThisWorkbook.Worksheets("PAGE 1").Activate
+    
+    Application.ScreenUpdating = True
     
     
 
@@ -289,3 +315,14 @@ End Sub
 
 
 
+Private Sub Workbook_BeforeClose(Cancel As Boolean)
+        On Error GoTo CloseWB
+        
+        Call DatabaseModule.Close_Connections
+CloseWB:
+
+End Sub
+
+Private Sub Workbook_Open()
+
+End Sub

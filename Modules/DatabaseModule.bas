@@ -19,20 +19,26 @@ Sub Init_Connections()
     On Error GoTo Err_Conn
     
     If ML7DataBaseConnection Is Nothing Then
+        
         Set ML7DataBaseConnection = New ADODB.Connection
-        ML7DataBaseConnection.ConnectionString = ML7_CONN_STRING
+        If RibbonCommands.toggML7TestDB_Pressed Then
+            ML7DataBaseConnection.ConnectionString = DataSources.ML7TEST_CONN_STRING
+        Else
+            ML7DataBaseConnection.ConnectionString = DataSources.ML7_CONN_STRING
+        End If
+        
         ML7DataBaseConnection.Open
     End If
       
     If E10DataBaseConnection Is Nothing Then
         Set E10DataBaseConnection = New ADODB.Connection
-        E10DataBaseConnection.ConnectionString = E10_CONN_STRING
+        E10DataBaseConnection.ConnectionString = DataSources.E10_CONN_STRING
         E10DataBaseConnection.Open
     End If
     
     If KioskDataBaseConnection Is Nothing Then
         Set KioskDataBaseConnection = New ADODB.Connection
-        KioskDataBaseConnection.ConnectionString = KIOSK_CONN_STRING
+        KioskDataBaseConnection.ConnectionString = DataSources.KIOSK_CONN_STRING
         KioskDataBaseConnection.Open
     End If
        
@@ -45,6 +51,11 @@ Err_Conn:
 
 End Sub
 
+Sub Close_Connections()
+    If Not (ML7DataBaseConnection Is Nothing) Then ML7DataBaseConnection.Close
+    If Not (E10DataBaseConnection Is Nothing) Then E10DataBaseConnection.Close
+    If Not (KioskDataBaseConnection Is Nothing) Then KioskDataBaseConnection.Close
+End Sub
 
 
 
@@ -247,6 +258,38 @@ Function GetFeatureTraceabilityData(jobNum As String, routine As String) As Vari
     If Not sqlRecordSet.EOF Then
         GetFeatureTraceabilityData = sqlRecordSet.GetRows()
         Exit Function
+    End If
+
+End Function
+
+
+Function IsAllAttribrute(routine As Variant) As Boolean
+    Call Init_Connections
+
+    Set fso = New FileSystemObject
+
+    Set sqlCommand = New ADODB.Command
+    With sqlCommand
+        .ActiveConnection = ML7DataBaseConnection
+        .CommandType = adCmdText
+        .CommandText = fso.OpenTextFile(DataSources.QUERIES_PATH & "AnyVariables.sql").ReadAll
+        
+        Dim partParam As ADODB.Parameter
+        Set partParam = .CreateParameter(Name:="r.RoutineName", Type:=adVarChar, Size:=255, Direction:=adParamInput, Value:=routine)
+        
+        .Parameters.Append partParam
+
+    End With
+
+    Set sqlRecordSet = New ADODB.Recordset
+    sqlRecordSet.CursorLocation = adUseClient
+    sqlRecordSet.Open Source:=sqlCommand, CursorType:=adOpenStatic
+    
+
+    If sqlRecordSet.EOF Then
+        IsAllAttribrute = True
+    Else
+        IsAllAttribrute = False
     End If
 
 End Function

@@ -9,7 +9,7 @@ Attribute VB_Name = "RibbonCommands"
 '       3. we should ask the DataBase Module to perform our check on whether a jobNumber actually exists and is valid
 '*************************************************************************************************
 
-'Epicor Job Infor
+'Epicor Job Info
 Public jobNumUcase As String
 Public customer As String
 Public partNum As String
@@ -20,22 +20,23 @@ Public partDesc As String
 Public drawNum As String
 Public prodQty As Integer
 
+'Routines for the part / Routines that we've run
+Public partRoutineList() As Variant
+Public runRoutineList() As Variant
 
+'Features and Measurement Information
 Dim featureHeaderInfo() As Variant
 Dim featureMeasuredValues() As Variant
 Dim featureTraceabilityInfo() As Variant
 
+'Ribbon Controls
 Dim cusRibbon As IRibbonUI
 
-Dim toggAutoForm_Pressed As Boolean
+Private toggAutoForm_Pressed As Boolean
+Public toggML7TestDB_Pressed As Boolean
 Public toggShowAllObs As Boolean
 
-
-Public partRoutineList() As Variant
-Public runRoutineList() As Variant
-
 Dim lblStatus_Text As String
-
 
 Dim rtCombo_TextField As String
 Dim rtCombo_Enabled As Boolean
@@ -66,15 +67,30 @@ Public Sub Callback(ByRef control As Office.IRibbonControl)
 End Sub
 
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+'              Show All Observations Toggle Buttom
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+Public Sub allObs_Toggle(ByRef control As Office.IRibbonControl, ByRef isPressed As Boolean)
+    toggShowAllObs = isPressed
+End Sub
+
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 '               Auto Load Form Toggle Button
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 Public Sub toggAutoForm_Toggle(ByRef control As Office.IRibbonControl, ByRef isPressed As Boolean)
     toggAutoForm_Pressed = isPressed
 End Sub
-
 Public Sub toggAutoForm_OnGetPressed(ByRef control As Office.IRibbonControl, ByRef ReturnedValue As Variant)
+    ReturnedValue = True
     toggAutoForm_Pressed = True
-    ReturnedValue = toggAutoForm_Pressed
+End Sub
+
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+'               ML7 Test Database Toggle Button
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+Public Sub testDB_Toggle(ByRef control As Office.IRibbonControl, ByRef isPressed As Boolean)
+    toggML7TestDB_Pressed = isPressed
+    Call DatabaseModule.Close_Connections 'If we had a connection already open, need to invalidate it so we can connect to the TestDB
 End Sub
 
 
@@ -85,35 +101,38 @@ Public Sub jbEditText_onGetText(ByRef control As IRibbonControl, ByRef Text)
     Text = jobNumUcase
     
     'Ask the workbook to Add the Information to Header Fields
-    Call ThisWorkbook.populateJobHeaders(jobNum:=jobNumUcase, routine:=rtCombo_TextField, customer:=customer, machine:=machine, partNum:=partNum, rev:=rev, partDesc:=partDesc)
-    Call ThisWorkbook.populateReport(featureInfo:=featureHeaderInfo, featureMeasurements:=featureMeasuredValues, featureTraceability:=featureTraceabilityInfo)
+'    Call ThisWorkbook.populateJobHeaders(jobNum:=jobNumUcase, routine:=rtCombo_TextField, customer:=customer, machine:=machine, partNum:=partNum, rev:=rev, partDesc:=partDesc)
+'    Call ThisWorkbook.populateReport(featureInfo:=featureHeaderInfo, featureMeasurements:=featureMeasuredValues, featureTraceability:=featureTraceabilityInfo)
     
 End Sub
 
 Public Sub jbEditText_OnChange(ByRef control As Office.IRibbonControl, ByRef Text As String)
     'Reset the Variables
+'    jobNumUcase = UCase(Text)
+'    chkFull_Pressed = False
+'    chkMini_Pressed = False
+'    chkNone_Pressed = False
+'    lblStatus_Text = vbNullString
+'
+'    rtCombo_Enabled = False
+'    rtCombo_TextField = vbNullString
+'
+'    partNum = vbNullString
+'    rev = vbNullString
+'    customer = vbNullString
+'    machine = vbNullString
+'    cell = vbNullString
+'    partDesc = vbNullString
+'
+'    Erase partRoutineList
+'    Erase runRoutineList
+'    Erase featureHeaderInfo
+'    Erase featureMeasuredValues
+'    Erase featureTraceabilityInfo
+
+    Call ClearVariables
+    
     jobNumUcase = UCase(Text)
-    chkFull_Pressed = False
-    chkMini_Pressed = False
-    chkNone_Pressed = False
-    lblStatus_Text = vbNullString
-    
-    rtCombo_Enabled = False
-    rtCombo_TextField = vbNullString
-    
-    partNum = vbNullString
-    rev = vbNullString
-    customer = vbNullString
-    machine = vbNullString
-    cell = vbNullString
-    partDesc = vbNullString
-    
-    Erase partRoutineList
-    Erase runRoutineList
-    Erase featureHeaderInfo
-    Erase featureMeasuredValues
-    Erase featureTraceabilityInfo
-    
     If Text = vbNullString Then GoTo 10
     
     Dim setupType As String
@@ -179,7 +198,9 @@ Public Sub jbEditText_OnChange(ByRef control As Office.IRibbonControl, ByRef Tex
     cusRibbon.InvalidateControl "jbEditText"
     cusRibbon.InvalidateControl "lblStatus"
     
-
+    Call SetWorkbookInformation
+    
+    If toggAutoForm_Pressed Then VettingForm.Show
 
     Exit Sub
 
@@ -201,30 +222,39 @@ Public Sub rtCombo_OnChange(ByRef control As Office.IRibbonControl, ByRef Text A
     If Not Not runRoutineList Then
         For i = 0 To UBound(runRoutineList, 2)
             If Text = runRoutineList(0, i) Then
+            
+                'Erase old feature data
                 validChange = True
-                lblStatus_Text = runRoutineList(1, i)
-                rtCombo_TextField = Text
-                
-                Erase featureMeasuredValues
-                Erase featureHeaderInfo
-                Erase featureTraceabilityInfo
-                
-                Call SetVariabes
-                        
-                'TODO: currently commenting this out, hoping that we can populate the headers exclusively with jbEditText_OnGetText()
-                
-                'We have to update the routine header here becuase selecting from the list won't call the OnGetText() event
-                'ThisWorkbook.populateHeaders jobNum:=jobNumUcase, routine:=Text, customer:=DatabaseModule.GetCustomerName(jobNumUcase)
+                Exit For
+'                Call ClearVariables(preserveRoutines:=True)
+'
+'                'Set new active routine
+'                lblStatus_Text = runRoutineList(1, i)
+'                rtCombo_TextField = Text
+'
+'                'Get new feature data with new active routine
+'                Call SetVariabes
+'                Call SetWorkbookInformation
+'
             End If
         Next i
     End If
     
-    If validChange = False Then
-        rtCombo_TextField = ""
-        lblStatus_Text = ""
-        cusRibbon.InvalidateControl "rtCombo"
+    Call ClearVariables(preserveRoutines:=True)
+    
+    If validChange = True Then
+         'Set new active routine
+        lblStatus_Text = runRoutineList(1, i)
+        rtCombo_TextField = Text
+        
+        'Get new feature data with new active routine
+        Call SetVariabes
     End If
     
+    'If there was new data we populate, if not then we clear everything
+    Call SetWorkbookInformation
+    
+    cusRibbon.InvalidateControl "rtCombo"
     cusRibbon.InvalidateControl "jbEditText"
     cusRibbon.InvalidateControl "lblStatus"
     
@@ -278,13 +308,7 @@ Public Sub lblStatus_OnGetLabel(ByRef control As Office.IRibbonControl, ByRef La
     End If
 End Sub
 
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-'              Show All Observations Toggle Buttom
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 
-Public Sub allObs_Toggle(ByRef control As Office.IRibbonControl, ByRef isPressed As Boolean)
-    toggShowAllObs = isPressed
-End Sub
 
 
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
@@ -341,10 +365,7 @@ Public Sub IterPrintRoutines()
         lblStatus_Text = runRoutineList(1, i)
         
         Call SetVariabes
-        'Can't invalidate the editText control to update the info, we need to call this explicitly
-        Call ThisWorkbook.populateJobHeaders(jobNum:=jobNumUcase, routine:=rtCombo_TextField, customer:=customer, machine:=machine, partNum:=partNum, rev:=rev, partDesc:=partDesc)
-        Call ThisWorkbook.populateReport(featureInfo:=featureHeaderInfo, featureMeasurements:=featureMeasuredValues, featureTraceability:=featureTraceabilityInfo)
-
+        Call SetWorkbookInformation
         Call ThisWorkbook.PrintResults
     Next i
     
@@ -372,7 +393,50 @@ Private Sub SetVariabes()
                                             features:=JoinPivotFeatures(featureHeaderInfo))
     featureTraceabilityInfo = DatabaseModule.GetFeatureTraceabilityData(jobNum:=jobNumUcase, routine:=rtCombo_TextField)
 
+End Sub
+
+Private Sub ClearVariables(Optional preserveRoutines As Boolean)
+    
+    'Always
+        'When the we try to set feature info w/o any info the wb runs cleanup and then stops
+    rtCombo_TextField = ""
+    lblStatus_Text = ""
+    Erase featureHeaderInfo
+    Erase featureMeasuredValues
+    Erase featureTraceabilityInfo
+    
+    
+    If preserveRoutines Then Exit Sub
+    
+    'Sometimes
+        'Want to skip this (likely because user entered nonsense into the routineName box)
+    
+    rtCombo_Enabled = False
+    jobNumUcase = UCase(Text)
+    chkFull_Pressed = False
+    chkMini_Pressed = False
+    chkNone_Pressed = False
+    
+    'Keep Job Info
+    partNum = vbNullString
+    rev = vbNullString
+    customer = vbNullString
+    machine = vbNullString
+    cell = vbNullString
+    partDesc = vbNullString
+    
+    'Keep routines for ComboBox
+    Erase partRoutineList
+    Erase runRoutineList
+
 
 End Sub
 
+Private Sub SetWorkbookInformation()
+    Call ThisWorkbook.populateJobHeaders(jobNum:=jobNumUcase, routine:=rtCombo_TextField, customer:=customer, _
+                                            machine:=machine, partNum:=partNum, rev:=rev, partDesc:=partDesc)
+    Call ThisWorkbook.populateReport(featureInfo:=featureHeaderInfo, featureMeasurements:=featureMeasuredValues, _
+                                        featureTraceability:=featureTraceabilityInfo)
+
+End Sub
 
