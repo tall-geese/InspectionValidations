@@ -187,7 +187,7 @@ Function GetFeatureHeaderInfo(jobNum As String, routine As String) As Variant()
 End Function
 
 
-Function GetFeatureMeasuredValues(jobNum As String, routine As String, features As String) As Variant()
+Function GetFeatureMeasuredValues(jobNum As String, routine As String, delimFeatures As String, featureInfo() As Variant) As Variant()
     Call Init_Connections
 
     Set fso = New FileSystemObject
@@ -197,17 +197,34 @@ Function GetFeatureMeasuredValues(jobNum As String, routine As String, features 
         .ActiveConnection = ML7DataBaseConnection
         .CommandType = adCmdText
             'TODO: we need to later conditionally change which of the sql arrays we will be using depending on the toggle Button
-        .CommandText = Replace(Split(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_FeatureMeasurements.sql").ReadAll, ";")(0), "{Features}", features)
+        .CommandText = Replace(Split(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_FeatureMeasurements.sql").ReadAll, ";")(0), "{Features}", delimFeatures)
         
         'Pivoting leaves a gap in the measured feature set, we need to check each row to see if any of them are NULL
-        Dim whereClause() As String
-        whereClause = Split(features, ",")
-        For i = 0 To UBound(whereClause)
-            .CommandText = .CommandText & "src3." & whereClause(i) & " IS NOT NULL "
-            If i <> UBound(whereClause) Then
-                .CommandText = .CommandText & " AND "
+'        Dim whereClause() As String
+'        whereClause = Split(features, ",")
+'        For i = 0 To UBound(whereClause)
+'            .CommandText = .CommandText & "src3." & whereClause(i) & " IS NOT NULL "
+'            If i <> UBound(whereClause) Then
+'                .CommandText = .CommandText & " AND "
+'            End If
+'        Next i
+        Dim whereClause As String
+        For i = 0 To UBound(featureInfo, 2)
+            If featureInfo(6, i) = "Attribute" Then
+                'Filter out Attribute failures by column
+                whereClause = whereClause & "(Pvt.[" & featureInfo(0, i) & "] <> 1 OR Pvt.[" & featureInfo(0, i) & "] IS NULL)"
+            Else
+                'Filter out Variable failure by column
+                whereClause = whereClause & "(Pvt.[" & featureInfo(0, i) & "] <> 99.998 OR Pvt.[" & featureInfo(0, i) & "] IS NULL)"
+            End If
+            'if its the last statement, no need for the AND
+            If i <> UBound(featureInfo, 2) Then
+                whereClause = whereClause & " AND "
             End If
         Next i
+        
+        .CommandText = .CommandText & whereClause
+        
         
         Dim params() As Variant
         params = Array("r.RunName", "rt.RoutineName")
@@ -273,54 +290,109 @@ Function GetAllFeatureMeasuredValues(jobNum As String, routine As String, featur
 End Function
 
 
-Function GetAllFIFeatureMeasuredValues(jobNum As String, routine As String, features As String, featureInfo() As Variant) As Variant()
-    Call Init_Connections
+'Holding onto these functions just in case, but may not need them
 
-    Set fso = New FileSystemObject
-
-    Set sqlCommand = New ADODB.Command
-    With sqlCommand
-        .ActiveConnection = ML7DataBaseConnection
-        .CommandType = adCmdText
-            'TODO: we need to later conditionally change which of the sql arrays we will be using depending on the toggle Button
-        .CommandText = Replace(Split(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_FeatureMeasurements.sql").ReadAll, ";")(1), "{Features}", features)
-'        .CommandText = Replace(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_FeatureMeasurements.sql").ReadAll, "{Features}", features)
-        
-        'TODO: for UBound(featureInfo,2) we need to add to select statements either src3.[whatever] or COALESCE(whatever,2)[whtaever]
-        'depending on featureInfo(6,i) attribute or variable
-        Dim selectClause() As String
-        selectClause = Split(features, ",")
-        For i = 0 To UBound(whereClause)
-            .CommandText = .CommandText & "src3." & whereClause(i) & " IS NOT NULL "
-            If i <> UBound(whereClause) Then
-                .CommandText = .CommandText & " AND "
-            End If
-        Next i
-        
-        Dim params() As Variant
-        params = Array("r.RunName", "rt.RoutineName")
-        Dim values() As Variant
-        values = Array(jobNum, routine)
-
-        For i = 0 To 3
-            Dim partParam As ADODB.Parameter
-            Set partParam = .CreateParameter(Name:=params(i Mod 2), Type:=adVarChar, Size:=255, Direction:=adParamInput, Value:=values(i Mod 2))
-            .Parameters.Append partParam
-        Next i
-
-    End With
-
-    Set sqlRecordSet = New ADODB.Recordset
-    sqlRecordSet.CursorLocation = adUseClient
-    sqlRecordSet.Open Source:=sqlCommand, CursorType:=adOpenStatic
-    
-
-    If Not sqlRecordSet.EOF Then
-        GetAllFIFeatureMeasuredValues = sqlRecordSet.GetRows()
-        Exit Function
-    End If
-
-End Function
+'Function GetFIFeatureMeasuredValues(jobNum As String, routine As String, features As String, featureInfo() As Variant) As Variant()
+'    Call Init_Connections
+'
+'    Set fso = New FileSystemObject
+'
+'    Set sqlCommand = New ADODB.Command
+'    With sqlCommand
+'        .ActiveConnection = ML7DataBaseConnection
+'        .CommandType = adCmdText
+'            'TODO: we need to later conditionally change which of the sql arrays we will be using depending on the toggle Button
+'        .CommandText = Replace(Split(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_FeatureMeasurements.sql").ReadAll, ";")(1), "{Features}", features)
+''        .CommandText = Replace(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_FeatureMeasurements.sql").ReadAll, "{Features}", features)
+'
+'        'TODO: for UBound(featureInfo,2) we need to add to select statements either src3.[whatever] or COALESCE(whatever,2)[whtaever]
+'        'depending on featureInfo(6,i) attribute or variable
+'        'featureInfo(0,i) = 0_003_00  feature name
+'        'featureInfo(6,i) = Attribute/Variable  feature type
+'
+'        Dim whereClause As String
+'        For i = 0 To UBound(featureInfo)
+'            If feautreInfo(6, i) = "Attribute" Then
+'                whereClause = whereClause & "(Pvt.[" & featureInfo(0, i) & "] <> 1 OR Pvt.[(i)] IS NULL)"
+'            End If
+'
+'
+'
+'            If i <> UBound(featureInfo, 2) Then
+'                whereClause = whereClause & " AND "
+'            End If
+'        Next i
+'
+'        Dim params() As Variant
+'        params = Array("r.RunName", "rt.RoutineName")
+'        Dim values() As Variant
+'        values = Array(jobNum, routine)
+'
+'        For i = 0 To 3
+'            Dim partParam As ADODB.Parameter
+'            Set partParam = .CreateParameter(Name:=params(i Mod 2), Type:=adVarChar, Size:=255, Direction:=adParamInput, Value:=values(i Mod 2))
+'            .Parameters.Append partParam
+'        Next i
+'
+'    End With
+'
+'    Set sqlRecordSet = New ADODB.Recordset
+'    sqlRecordSet.CursorLocation = adUseClient
+'    sqlRecordSet.Open Source:=sqlCommand, CursorType:=adOpenStatic
+'
+'
+'    If Not sqlRecordSet.EOF Then
+'        GetFIFeatureMeasuredValues = sqlRecordSet.GetRows()
+'        Exit Function
+'    End If
+'
+'End Function
+'
+'Function GetAllFIFeatureMeasuredValues(jobNum As String, routine As String, features As String, featureInfo() As Variant) As Variant()
+'    Call Init_Connections
+'
+'    Set fso = New FileSystemObject
+'
+'    Set sqlCommand = New ADODB.Command
+'    With sqlCommand
+'        .ActiveConnection = ML7DataBaseConnection
+'        .CommandType = adCmdText
+'            'TODO: we need to later conditionally change which of the sql arrays we will be using depending on the toggle Button
+'        .CommandText = Replace(Split(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_FeatureMeasurements.sql").ReadAll, ";")(1), "{Features}", features)
+''        .CommandText = Replace(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_FeatureMeasurements.sql").ReadAll, "{Features}", features)
+'
+'        'TODO: for UBound(featureInfo,2) we need to add to select statements either src3.[whatever] or COALESCE(whatever,2)[whtaever]
+'        'depending on featureInfo(6,i) attribute or variable
+'        Dim selectClause As String
+'        For i = 0 To UBound(featureInfo)
+'
+'
+'        Next i
+'
+'        Dim params() As Variant
+'        params = Array("r.RunName", "rt.RoutineName")
+'        Dim values() As Variant
+'        values = Array(jobNum, routine)
+'
+'        For i = 0 To 3
+'            Dim partParam As ADODB.Parameter
+'            Set partParam = .CreateParameter(Name:=params(i Mod 2), Type:=adVarChar, Size:=255, Direction:=adParamInput, Value:=values(i Mod 2))
+'            .Parameters.Append partParam
+'        Next i
+'
+'    End With
+'
+'    Set sqlRecordSet = New ADODB.Recordset
+'    sqlRecordSet.CursorLocation = adUseClient
+'    sqlRecordSet.Open Source:=sqlCommand, CursorType:=adOpenStatic
+'
+'
+'    If Not sqlRecordSet.EOF Then
+'        GetAllFIFeatureMeasuredValues = sqlRecordSet.GetRows()
+'        Exit Function
+'    End If
+'
+'End Function
 
 
 Function GetFeatureTraceabilityData(jobNum As String, routine As String) As Variant()
@@ -618,6 +690,39 @@ End Function
 
 
 
+''''''
+'
+'
+'
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+'               Test
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 
+Sub testMeasuredValues()
+    Call Init_Connections
+
+    Set fso = New FileSystemObject
+
+    Set sqlCommand = New ADODB.Command
+    With sqlCommand
+        .ActiveConnection = ML7DataBaseConnection
+        .CommandType = adCmdText
+            'TODO: we need to later conditionally change which of the sql arrays we will be using depending on the toggle Button
+        .CommandText = Split(fso.OpenTextFile(DataSources.QUERIES_PATH & "AllvaluesTest.sql").ReadAll, ";")(2)
+
+    End With
+
+    Set sqlRecordSet = New ADODB.Recordset
+    sqlRecordSet.CursorLocation = adUseClient
+    sqlRecordSet.Open Source:=sqlCommand, CursorType:=adOpenStatic
+    
+    Dim output() As Variant
+    output = sqlRecordSet.GetRows()
+    If Not sqlRecordSet.EOF Then
+        MsgBox ("end of sub")
+        Exit Sub
+    End If
+
+End Sub
 
 

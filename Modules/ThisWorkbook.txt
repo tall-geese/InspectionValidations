@@ -103,7 +103,7 @@ End Sub
 Private Sub populateFeatureMeasuredValues(featureMeasurements() As Variant)
     
     For i = 0 To UBound(featureMeasurements, 1)
-            If i = 0 Then GoTo NextIteration
+            If i = 0 Then GoTo NextFeature
             Dim activePageNum As Integer
             activePageNum = Application.WorksheetFunction.Floor((i - 1) / 8, 1) + 1
 
@@ -112,6 +112,12 @@ Private Sub populateFeatureMeasuredValues(featureMeasurements() As Variant)
                 colLetter = ExcelHelpers.GetAddress(((i - 1) Mod 8) + 5)
                 
                 For j = 0 To UBound(featureMeasurements, 2)
+
+                    'if the operator forgot to take a measurement, then it comes up as a NULL value
+                    If VarType(featureMeasurements(i, j)) = vbNull Then
+                        .Range(colLetter & (j + 22)).Value = "N/A"
+                        GoTo NextMeasurement
+                    End If
                     'We store a hidden value for Attribute/Variable in the 8th row
                     'If the returned value on an attribute dimension is 1, then it is a failure
                     If .Range(colLetter & "8").Value = "Attribute" Then
@@ -121,14 +127,22 @@ Private Sub populateFeatureMeasuredValues(featureMeasurements() As Variant)
                             .Range(colLetter & (j + 22)).Value = "Fail"
                         End If
                     Else
-                        'Otherwise its variable, just set the value
-                        .Range(colLetter & (j + 22)).Value = featureMeasurements(i, j)
+                        'Otherwise its variable
+                        If featureMeasurements(i, j) = DataSources.VARIABLE_FAILED_VALUE Then
+                            'ShowALLObs needs to differentiate Failed measurements from missing ones and does this through a special value
+                            .Range(colLetter & (j + 22)).Value = "Fail"
+                        Else
+                            'Set the good value
+                            .Range(colLetter & (j + 22)).Value = featureMeasurements(i, j)
+                        End If
+                        
                     End If
+NextMeasurement:
                 Next j
 
             End With
 
-NextIteration:
+NextFeature:
     Next i
 
 End Sub

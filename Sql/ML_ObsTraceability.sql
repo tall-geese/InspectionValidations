@@ -7,6 +7,7 @@ FROM (SELECT MIN(src.ObsTimestamp)[TimeStamp], MAX(src.ItemName)[EmployeeID], sr
 	FROM (SELECT frd.ObsTimestamp, dta.ItemName, frd.ObsID, frd.Value,
 				CASE 
 					WHEN(frd.Value > fpr.UpperToleranceLimit OR frd.Value < fpr.LowerToleranceLimit) THEN 'Fail'
+					WHEN frd.Value IS NULL THEN 'Fail'
 					ELSE 'Pass'
 				END AS 'Result'
 			FROM MeasurLink7.dbo.FeatureRun fr 
@@ -21,6 +22,7 @@ FROM (SELECT MIN(src.ObsTimestamp)[TimeStamp], MAX(src.ItemName)[EmployeeID], sr
 			SELECT  afrd.ObsTimestamp, dta.ItemName, afrd.ObsID, afrd.DefectCount,
 				CASE
 					WHEN afrd.DefectCount = 1 THEN 'Fail'
+					WHEN afrd.DefectCount IS NULL THEN 'Fail'
 					ELSE 'Pass'
 				END AS 'Result'
 			FROM MeasurLink7.dbo.FeatureRun fr 
@@ -41,6 +43,7 @@ SELECT MIN(src.ObsTimestamp)[TimeStamp], MAX(src.ItemName)[EmployeeID], src.ObsI
 FROM (SELECT frd.ObsTimestamp, dta.ItemName, frd.ObsID, frd.Value,
 			CASE 
 				WHEN(frd.Value > fpr.UpperToleranceLimit OR frd.Value < fpr.LowerToleranceLimit) THEN 'Fail'
+				WHEN frd.Value IS NULL THEN 'Fail'
 				ELSE 'Pass'
 			END AS 'Result'
 		FROM MeasurLink7.dbo.FeatureRun fr 
@@ -55,6 +58,7 @@ FROM (SELECT frd.ObsTimestamp, dta.ItemName, frd.ObsID, frd.Value,
 		SELECT  afrd.ObsTimestamp, dta.ItemName, afrd.ObsID, afrd.DefectCount,
 			CASE
 				WHEN afrd.DefectCount = 1 THEN 'Fail'
+				WHEN afrd.DefectCount IS NULL THEN 'Fail'
 				ELSE 'Pass'
 			END AS 'Result'
 		FROM MeasurLink7.dbo.FeatureRun fr 

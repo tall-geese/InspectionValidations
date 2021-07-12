@@ -168,7 +168,7 @@ Public Sub jbEditText_OnChange(ByRef control As Office.IRibbonControl, ByRef Tex
                                                 features:=JoinPivotFeatures(features)), 2) + 1
             Else
                 runRoutineList(2, i) = UBound(DatabaseModule.GetFeatureMeasuredValues(jobNum:=jobNumUcase, routine:=routine, _
-                                                features:=JoinPivotFeatures(features)), 2) + 1
+                                                delimFeatures:=JoinPivotFeatures(features), featureInfo:=features), 2) + 1
             End If
             
              
@@ -388,7 +388,7 @@ Private Sub SetVariabes()
         featureTraceabilityInfo = DatabaseModule.GetAllFeatureTraceabilityData(jobNum:=jobNumUcase, routine:=rtCombo_TextField)
     Else
         featureMeasuredValues = DatabaseModule.GetFeatureMeasuredValues(jobNum:=jobNumUcase, routine:=rtCombo_TextField, _
-                                                features:=JoinPivotFeatures(featureHeaderInfo))
+                                                delimFeatures:=JoinPivotFeatures(featureHeaderInfo), featureInfo:=featureHeaderInfo)
         featureTraceabilityInfo = DatabaseModule.GetFeatureTraceabilityData(jobNum:=jobNumUcase, routine:=rtCombo_TextField)
     End If
 
