@@ -20,22 +20,15 @@ Dim failedRoutines() As Variant
 
 
 
-Private Sub EmailButton_Click()
-    Dim cellLeadEmail As String
-    cellLeadEmail = DatabaseModule.GetCellLeadEmail(cell:=RibbonCommands.cell)
-    
-    Call ExcelHelpers.CreateEmail(qcManager:=qcManagerAlertReq, cellLead:=cellLeadAlertReq, cellLeadEmail:=cellLeadEmail, _
-                                    jobNum:=RibbonCommands.jobNumUcase, machine:=RibbonCommands.machine, failInfo:=failedRoutines)
 
-End Sub
-
-Private Sub PrintButton_Click()
-    Unload Me
-    Call RibbonCommands.IterPrintRoutines
-End Sub
-
+'****************************************************************************************
+'               UserForm Functions
+'****************************************************************************************
 
 Private Sub UserForm_Initialize()
+    
+    Call SetActivePrinter
+
 
     'Set the required routines for the part
     'Also set the required observations for the routine
@@ -156,6 +149,38 @@ NextControl:
 End Sub
 
 
+Private Sub EmailButton_Click()
+    Dim cellLeadEmail As String
+    cellLeadEmail = DatabaseModule.GetCellLeadEmail(cell:=RibbonCommands.cell)
+    
+    Call ExcelHelpers.CreateEmail(qcManager:=qcManagerAlertReq, cellLead:=cellLeadAlertReq, cellLeadEmail:=cellLeadEmail, _
+                                    jobNum:=RibbonCommands.jobNumUcase, machine:=RibbonCommands.machine, failInfo:=failedRoutines)
+
+End Sub
+
+Private Sub PrintButton_Click()
+    Unload Me
+    Call RibbonCommands.IterPrintRoutines
+End Sub
+
+
+Private Sub UserForm_Activate()
+'    MsgBox (Me.Controls("RoutineFrame").Routine1.Caption)
+End Sub
+
+
+Private Sub ChangePrinterButton_Click()
+    If (Application.Dialogs(xlDialogPrinterSetup).Show) Then
+        Call SetActivePrinter
+    End If
+End Sub
+
+
+
+
+'****************************************************************************************
+'               Extra Functions
+'****************************************************************************************
 Private Sub VetInspections()
     
     For i = 0 To Me.RoutineFrame.Controls.Count - 1
@@ -239,9 +264,12 @@ Private Sub hideResult(location As Variant)
     Me.ResultFrame.Controls(location).Visible = False
 End Sub
 
+Private Sub SetActivePrinter()
+    Me.ActivePrinter.Caption = Split(Application.ActivePrinter, " ")(0)
 
-
-Private Sub UserForm_Activate()
-'    MsgBox (Me.Controls("RoutineFrame").Routine1.Caption)
 End Sub
+
+
+
+
 

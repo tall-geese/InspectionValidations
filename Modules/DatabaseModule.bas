@@ -273,6 +273,56 @@ Function GetAllFeatureMeasuredValues(jobNum As String, routine As String, featur
 End Function
 
 
+Function GetAllFIFeatureMeasuredValues(jobNum As String, routine As String, features As String, featureInfo() As Variant) As Variant()
+    Call Init_Connections
+
+    Set fso = New FileSystemObject
+
+    Set sqlCommand = New ADODB.Command
+    With sqlCommand
+        .ActiveConnection = ML7DataBaseConnection
+        .CommandType = adCmdText
+            'TODO: we need to later conditionally change which of the sql arrays we will be using depending on the toggle Button
+        .CommandText = Replace(Split(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_FeatureMeasurements.sql").ReadAll, ";")(1), "{Features}", features)
+'        .CommandText = Replace(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_FeatureMeasurements.sql").ReadAll, "{Features}", features)
+        
+        'TODO: for UBound(featureInfo,2) we need to add to select statements either src3.[whatever] or COALESCE(whatever,2)[whtaever]
+        'depending on featureInfo(6,i) attribute or variable
+        Dim selectClause() As String
+        selectClause = Split(features, ",")
+        For i = 0 To UBound(whereClause)
+            .CommandText = .CommandText & "src3." & whereClause(i) & " IS NOT NULL "
+            If i <> UBound(whereClause) Then
+                .CommandText = .CommandText & " AND "
+            End If
+        Next i
+        
+        Dim params() As Variant
+        params = Array("r.RunName", "rt.RoutineName")
+        Dim values() As Variant
+        values = Array(jobNum, routine)
+
+        For i = 0 To 3
+            Dim partParam As ADODB.Parameter
+            Set partParam = .CreateParameter(Name:=params(i Mod 2), Type:=adVarChar, Size:=255, Direction:=adParamInput, Value:=values(i Mod 2))
+            .Parameters.Append partParam
+        Next i
+
+    End With
+
+    Set sqlRecordSet = New ADODB.Recordset
+    sqlRecordSet.CursorLocation = adUseClient
+    sqlRecordSet.Open Source:=sqlCommand, CursorType:=adOpenStatic
+    
+
+    If Not sqlRecordSet.EOF Then
+        GetAllFIFeatureMeasuredValues = sqlRecordSet.GetRows()
+        Exit Function
+    End If
+
+End Function
+
+
 Function GetFeatureTraceabilityData(jobNum As String, routine As String) As Variant()
     Call Init_Connections
 

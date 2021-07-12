@@ -7,8 +7,8 @@
 		--depending on the feature type given
 SELECT src3.*
 FROM (SELECT Pvt.*
-	FROM (SELECT src.FeatureName, src.ObsNo, src.Value
-			FROM (SELECT f.FeatureName,  frd.ObsNo, frd.Value,
+	FROM (SELECT src.FeatureName, src.ObsID, src.Value
+			FROM (SELECT f.FeatureName,  frd.ObsID, frd.Value,
 				CASE 
 					WHEN (frd.Value > frp.UpperToleranceLimit) THEN 'Fail'
 					WHEN (frd.Value < frp.LowerToleranceLimit) THEN 'Fail'
@@ -22,7 +22,7 @@ FROM (SELECT Pvt.*
 			INNER JOIN MeasurLink7.dbo.FeatureProperties frp ON f.FeatureID = frp.FeatureID AND f.FeaturePropID = frp.FeaturePropID 
 			WHERE r.RunName = ? AND rt.RoutineName = ?
 			UNION ALL
-			SELECT f.FeatureName, afrd.ObsNo, afrd.DefectCount,
+			SELECT f.FeatureName, afrd.ObsID, afrd.DefectCount,
 				CASE 
 					WHEN (afrd.DefectCount = 1) THEN 'Fail'
 					ELSE 'Pass'
@@ -43,7 +43,7 @@ WHERE ;
 --This is our optional query that we will conditionally use when the
 	-- 'ShowAllObservations' Toggle button is pressed
 SELECT Pvt.*
-	FROM (SELECT f.FeatureName,  frd.ObsNo, frd.Value 
+	FROM (SELECT f.FeatureName,  frd.ObsID, frd.Value 
 		FROM MeasurLink7.dbo.FeatureRun fr 
 		INNER JOIN MeasurLink7.dbo.Feature f ON F.FeatureID = fr.FeatureID 
 		INNER JOIN MeasurLink7.dbo.Run r ON fr.RunID = r.RunID 
@@ -51,7 +51,7 @@ SELECT Pvt.*
 		INNER JOIN MeasurLink7.dbo.FeatureRunData frd ON fr.RunID = frd.RunID AND fr.FeatureID=frd.FeatureID 
 		WHERE r.RunName = ? AND rt.RoutineName = ?
 		UNION ALL
-		SELECT f.FeatureName, afrd.ObsNo, afrd.DefectCount 
+		SELECT f.FeatureName, afrd.ObsID, afrd.DefectCount 
 		FROM MeasurLink7.dbo.FeatureRun fr 
 		INNER JOIN MeasurLink7.dbo.Feature f ON F.FeatureID = fr.FeatureID 
 		INNER JOIN MeasurLink7.dbo.Run r ON fr.RunID = r.RunID 

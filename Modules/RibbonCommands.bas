@@ -24,7 +24,7 @@ Public prodQty As Integer
 Public partRoutineList() As Variant
 Public runRoutineList() As Variant
 
-'Features and Measurement Information
+'Features and Measurement Information, applicable to the currently selected Routine
 Dim featureHeaderInfo() As Variant
 Dim featureMeasuredValues() As Variant
 Dim featureTraceabilityInfo() As Variant
@@ -93,6 +93,10 @@ Public Sub testDB_Toggle(ByRef control As Office.IRibbonControl, ByRef isPressed
     Call DatabaseModule.Close_Connections 'If we had a connection already open, need to invalidate it so we can connect to the TestDB
 End Sub
 
+Public Sub testDB_OnGetEnabled(ByRef control As Office.IRibbonControl, ByRef ReturnedValue As Variant)
+    ReturnedValue = False
+End Sub
+
 
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 '               Job Number EditTextField
@@ -108,28 +112,6 @@ End Sub
 
 Public Sub jbEditText_OnChange(ByRef control As Office.IRibbonControl, ByRef Text As String)
     'Reset the Variables
-'    jobNumUcase = UCase(Text)
-'    chkFull_Pressed = False
-'    chkMini_Pressed = False
-'    chkNone_Pressed = False
-'    lblStatus_Text = vbNullString
-'
-'    rtCombo_Enabled = False
-'    rtCombo_TextField = vbNullString
-'
-'    partNum = vbNullString
-'    rev = vbNullString
-'    customer = vbNullString
-'    machine = vbNullString
-'    cell = vbNullString
-'    partDesc = vbNullString
-'
-'    Erase partRoutineList
-'    Erase runRoutineList
-'    Erase featureHeaderInfo
-'    Erase featureMeasuredValues
-'    Erase featureTraceabilityInfo
-
     Call ClearVariables
     
     jobNumUcase = UCase(Text)
@@ -177,8 +159,19 @@ Public Sub jbEditText_OnChange(ByRef control As Office.IRibbonControl, ByRef Tex
             routine = runRoutineList(0, i)
             Dim features() As Variant
             features = DatabaseModule.GetFeatureHeaderInfo(jobNum:=jobNumUcase, routine:=routine)
-            runRoutineList(2, i) = UBound(DatabaseModule.GetFeatureMeasuredValues(jobNum:=jobNumUcase, routine:=routine, _
+            
+            'Find the total number of observations for each routine
+            'TODO: This is NOT conditionally switching on All/Pass Observations
+            
+            If toggShowAllObs_Pressed Then
+                runRoutineList(2, i) = UBound(DatabaseModule.GetAllFeatureMeasuredValues(jobNum:=jobNumUcase, routine:=routine, _
                                                 features:=JoinPivotFeatures(features)), 2) + 1
+            Else
+                runRoutineList(2, i) = UBound(DatabaseModule.GetFeatureMeasuredValues(jobNum:=jobNumUcase, routine:=routine, _
+                                                features:=JoinPivotFeatures(features)), 2) + 1
+            End If
+            
+             
         Next i
         
 
