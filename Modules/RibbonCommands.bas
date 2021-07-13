@@ -126,8 +126,8 @@ Public Sub jbEditText_OnChange(ByRef control As Office.IRibbonControl, ByRef Tex
     
         On Error GoTo ML_NotApplicable:
         'TODO create two respective routine retrievals for both run and Part
-        tempRoutineArray = DatabaseModule.GetRunRoutineList(jobNumUcase).GetRows()
-        partRoutineList = DatabaseModule.GetPartRoutineList(partNum, rev).GetRows()
+        tempRoutineArray = DatabaseModule.GetRunRoutineList(jobNumUcase)
+        partRoutineList = DatabaseModule.GetPartRoutineList(partNum, rev)
         
         ReDim Preserve runRoutineList(2, UBound(tempRoutineArray, 2))
         For i = 0 To UBound(tempRoutineArray, 2)
@@ -165,7 +165,7 @@ Public Sub jbEditText_OnChange(ByRef control As Office.IRibbonControl, ByRef Tex
             
             If toggShowAllObs_Pressed Then
                 runRoutineList(2, i) = UBound(DatabaseModule.GetAllFeatureMeasuredValues(jobNum:=jobNumUcase, routine:=routine, _
-                                                features:=JoinPivotFeatures(features)), 2) + 1
+                                                delimFeatures:=JoinPivotFeatures(features)), 2) + 1
             Else
                 runRoutineList(2, i) = UBound(DatabaseModule.GetFeatureMeasuredValues(jobNum:=jobNumUcase, routine:=routine, _
                                                 delimFeatures:=JoinPivotFeatures(features), featureInfo:=features), 2) + 1
@@ -384,7 +384,7 @@ Private Sub SetVariabes()
     featureHeaderInfo = DatabaseModule.GetFeatureHeaderInfo(jobNum:=jobNumUcase, routine:=rtCombo_TextField)
     If toggShowAllObs_Pressed Then
         featureMeasuredValues = DatabaseModule.GetAllFeatureMeasuredValues(jobNum:=jobNumUcase, routine:=rtCombo_TextField, _
-                                                features:=JoinPivotFeatures(featureHeaderInfo))
+                                                delimFeatures:=JoinPivotFeatures(featureHeaderInfo))
         featureTraceabilityInfo = DatabaseModule.GetAllFeatureTraceabilityData(jobNum:=jobNumUcase, routine:=rtCombo_TextField)
     Else
         featureMeasuredValues = DatabaseModule.GetFeatureMeasuredValues(jobNum:=jobNumUcase, routine:=rtCombo_TextField, _

@@ -9,14 +9,15 @@ Public Function GetAQL(customer As String, drawNum As String, prodQty As Integer
 
     prefixPath = "J:\Inspection Reports\" & customer & "\" & drawNum & "\" & "Current Revision\"
     
-    'TODO: if the reuslt of dir is "", then that means that we didnt find it in Current Revision, we should switch to draft
     Filename = Dir(prefixPath & drawNum & "*.xlsm")
     
     
     If Filename = "" Then
+        'If there isn't an xl file in the directory, it may be in the draft
         prefixPath = "J:\Inspection Reports\" & customer & "\" & drawNum & "\" & "Draft\"
         Filename = Dir(prefixPath & drawNum & "*.xlsm")
         
+        'If still nothing then something wrong with the inspection report
         If Filename = "" Then GoTo FileDirErr
         
     End If
@@ -29,12 +30,10 @@ Public Function GetAQL(customer As String, drawNum As String, prodQty As Integer
     aqlVal = partWb.Worksheets("ML Frequency Chart").Range("B7").Value
     If aqlVal = "" Then GoTo WbReadErr
     
-    'TODO: need to add an AQL worksheet to this workbook so we can implement the rules and lookup of the a AQL value
     If aqlVal = "100%" Then
-        'Set the value equal to the found prodQty and Exit sub
+        GetAQL = prodQty
+        Exit Function
     End If
-    
-    'TODO: somehwere her we need to find the IR Tables workbook so we can switch on its value
     
     Set aqlWb = Workbooks.Open(Filename:="\\JADE76\IQS Documents\Current\IR Tables.xlsx", UpdateLinks:=0, ReadOnly:=True)
     
@@ -97,13 +96,6 @@ WbReadErr:
 End Function
 
 
-Public Function GetAddress(column As Integer) As String
-    Dim vArr
-    vArr = Split(Cells(1, column).Address(True, False), "$")
-    GetAddress = vArr(0)
-
-End Function
-
 Public Sub CreateEmail(qcManager As Boolean, cellLead As Boolean, cellLeadEmail As String, jobNum As String, machine As String, failInfo() As Variant)
     Dim oApp As Outlook.Application
     Dim myMail As Outlook.MailItem
@@ -159,3 +151,10 @@ Function xTab(num As Integer) As String
     Next i
 End Function
 
+
+Public Function GetAddress(column As Integer) As String
+    Dim vArr
+    vArr = Split(Cells(1, column).Address(True, False), "$")
+    GetAddress = vArr(0)
+
+End Function

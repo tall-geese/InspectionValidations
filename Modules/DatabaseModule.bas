@@ -13,6 +13,15 @@ Dim KioskDataBaseConnection As ADODB.Connection
 Dim sqlCommand As ADODB.Command
 Dim sqlRecordSet As ADODB.Recordset
 Dim fso As New FileSystemObject
+Dim query As String
+Dim params() As Variant
+
+Private Enum Connections
+    E10 = 0
+    ML7 = 1
+    Kiosk = 2
+End Enum
+
 
 Sub Init_Connections()
 
@@ -41,6 +50,8 @@ Sub Init_Connections()
         KioskDataBaseConnection.ConnectionString = DataSources.KIOSK_CONN_STRING
         KioskDataBaseConnection.Open
     End If
+    
+    
        
         
     Exit Sub
@@ -51,6 +62,54 @@ Err_Conn:
 
 End Sub
 
+    'Calling function should pass us a query and array of parameters to set
+    'In this sub we should execute the query and set the topLevel recordset that the calling function can use GetRows() on
+Private Sub ExecQuery(query As String, params() As Variant, conn_enum As Connections)
+
+    Call Init_Connections
+    Set fso = New FileSystemObject
+
+    Set sqlCommand = New ADODB.Command
+    With sqlCommand
+        .ActiveConnection = GetConnection(conn_enum)
+        .CommandType = adCmdText
+        .CommandText = query
+    
+        'Params structure
+        'params(0) = "jh.JoNum,'NV1452'"
+        For i = 0 To UBound(params)
+            Dim queryParam As ADODB.Parameter
+            Set queryParam = .CreateParameter(Name:=Split(params(i), ",")(0), Type:=adVarChar, Size:=255, Direction:=adParamInput, Value:=Split(params(i), ",")(1))
+            .Parameters.Append queryParam
+        Next i
+    
+    End With
+    
+    Set sqlRecordSet = New ADODB.Recordset
+    sqlRecordSet.Open sqlCommand
+
+    If sqlRecordSet.EOF Then
+        'Raise an error here that we returned no rows? That would mean someone created a routine but didnt do any inpsections
+        'See if we can cascade the error upwards where the routine name could be accessed.
+    End If
+
+End Sub
+
+
+
+Private Function GetConnection(conn_enum As Connections) As ADODB.Connection
+    Select Case conn_enum
+        Case 0
+            Set GetConnection = E10DataBaseConnection
+        Case 1
+            Set GetConnection = ML7DataBaseConnection
+        Case 2
+            Set GetConnection = KioskDataBaseConnection
+        Case Else
+    End Select
+End Function
+
+
 Sub Close_Connections()
     If Not (ML7DataBaseConnection Is Nothing) Then ML7DataBaseConnection.Close
     If Not (E10DataBaseConnection Is Nothing) Then E10DataBaseConnection.Close
@@ -60,35 +119,31 @@ End Sub
 
 
 
+
+
+
+
+
+
+
+
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 '               Epicor
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-
 Function GetJobInformation(JobID As String, Optional ByRef partNum As Variant, Optional ByRef rev As Variant, _
                                 Optional ByRef setupType As Variant, Optional ByRef custName As Variant, _
                                 Optional ByRef machine As Variant, Optional ByRef cell As Variant, _
                                 Optional ByRef partDescription As Variant, Optional prodQty As Variant, _
                                 Optional ByRef drawNum As Variant) As Boolean
-    Call Init_Connections
-    Set fso = New FileSystemObject
-
-    Set sqlCommand = New ADODB.Command
-    With sqlCommand
-        .ActiveConnection = E10DataBaseConnection
-        .CommandType = adCmdText
-        .CommandText = fso.OpenTextFile(DataSources.QUERIES_PATH & "EpicorJobInfo.sql").ReadAll
-                        
-        
-        Dim jobParam As ADODB.Parameter
-        Set jobParam = .CreateParameter(Name:="jh.JobNum", Type:=adVarChar, Size:=14, Direction:=adParamInput)
-        jobParam.Value = JobID
-        .Parameters.Append jobParam
-    End With
-        
-    Set sqlRecordSet = New ADODB.Recordset
-    sqlRecordSet.Open sqlCommand
     
-    'If any rows at all were returned, we know that the job exists
+    Set fso = New FileSystemObject
+    params = Array("jh.JobNum," & JobID)
+    query = fso.OpenTextFile(DataSources.QUERIES_PATH & "EpicorJobInfo.sql").ReadAll
+    
+    
+    Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.E10)
+    
+    
     If Not sqlRecordSet.EOF Then
         'Set values to pass to the Header Fields
         If Not IsMissing(partNum) Then partNum = sqlRecordSet.Fields(2).Value
@@ -106,42 +161,33 @@ Function GetJobInformation(JobID As String, Optional ByRef partNum As Variant, O
         GetJobInformation = True
         Exit Function
     End If
-
+    
+    'If now rows are returned, the job doesn't exist
     GetJobInformation = False
 End Function
 
 
-
 Function Get1XSHIFTInsps(JobID As String) As String
-    Call Init_Connections
-    Set fso = New FileSystemObject
 
-    Set sqlCommand = New ADODB.Command
-    With sqlCommand
-        .ActiveConnection = E10DataBaseConnection
-        .CommandType = adCmdText
-        .CommandText = fso.OpenTextFile(DataSources.QUERIES_PATH & "1XSHIFT.sql").ReadAll
-                        
-        
-        Dim jobParam As ADODB.Parameter
-        Set jobParam = .CreateParameter(Name:="jo.JobNum", Type:=adVarChar, Size:=14, Direction:=adParamInput)
-        jobParam.Value = JobID
-        .Parameters.Append jobParam
-    End With
-        
-    Set sqlRecordSet = New ADODB.Recordset
-    sqlRecordSet.Open sqlCommand
+    Set fso = New FileSystemObject
+    params = Array("jo.JobNum," & JobID)
+    query = fso.OpenTextFile(DataSources.QUERIES_PATH & "1XSHIFT.sql").ReadAll
+
+    Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.E10)
     
-    'If any rows at all were returned, we know that the job exists
     If Not sqlRecordSet.EOF Then
         Get1XSHIFTInsps = sqlRecordSet.Fields(1).Value
         Exit Function
     End If
     
-    'TODO: otherwise alert the user that no labor qty has been accepted for this job
-
+    'TODO: Error here, we will need to the customer name to determine the workbook directory for AQL
     Get1XSHIFTInsps = "None"
 End Function
+
+
+
+
+
 
 
 
@@ -151,34 +197,14 @@ End Function
 '               MeasurLink
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 
-' Retrieve the Header Information for the Features applicable to our Run and Routine
 Function GetFeatureHeaderInfo(jobNum As String, routine As String) As Variant()
-    Call Init_Connections
-
-    Set fso = New FileSystemObject
-
-    Set sqlCommand = New ADODB.Command
-    With sqlCommand
-        .ActiveConnection = ML7DataBaseConnection
-        .CommandType = adCmdText
-        .CommandText = fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_FeatureHeaderInfo.sql").ReadAll
-        
-        
-        Dim partParam As ADODB.Parameter
-        Set partParam = .CreateParameter(Name:="r.RunName", Type:=adVarChar, Size:=255, Direction:=adParamInput, Value:=jobNum)
-        Dim partParam2 As ADODB.Parameter
-        Set partParam2 = .CreateParameter(Name:="rt.RoutineName", Type:=adVarChar, Size:=255, Direction:=adParamInput, Value:=routine)
-        
-        .Parameters.Append partParam
-        .Parameters.Append partParam2
-
-    End With
-
-    Set sqlRecordSet = New ADODB.Recordset
-    sqlRecordSet.CursorLocation = adUseClient
-    sqlRecordSet.Open Source:=sqlCommand, CursorType:=adOpenStatic
     
-
+    Set fso = New FileSystemObject
+    query = fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_FeatureHeaderInfo.sql").ReadAll
+    params = Array("r.RunName," & jobNum, "rt.RoutineName," & routine)
+    
+    Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.ML7)
+    
     If Not sqlRecordSet.EOF Then
         GetFeatureHeaderInfo = sqlRecordSet.GetRows()
         Exit Function
@@ -186,63 +212,31 @@ Function GetFeatureHeaderInfo(jobNum As String, routine As String) As Variant()
 
 End Function
 
-
+    'Get all observation values, filter out failures
 Function GetFeatureMeasuredValues(jobNum As String, routine As String, delimFeatures As String, featureInfo() As Variant) As Variant()
-    Call Init_Connections
 
     Set fso = New FileSystemObject
-
-    Set sqlCommand = New ADODB.Command
-    With sqlCommand
-        .ActiveConnection = ML7DataBaseConnection
-        .CommandType = adCmdText
-            'TODO: we need to later conditionally change which of the sql arrays we will be using depending on the toggle Button
-        .CommandText = Replace(Split(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_FeatureMeasurements.sql").ReadAll, ";")(0), "{Features}", delimFeatures)
-        
-        'Pivoting leaves a gap in the measured feature set, we need to check each row to see if any of them are NULL
-'        Dim whereClause() As String
-'        whereClause = Split(features, ",")
-'        For i = 0 To UBound(whereClause)
-'            .CommandText = .CommandText & "src3." & whereClause(i) & " IS NOT NULL "
-'            If i <> UBound(whereClause) Then
-'                .CommandText = .CommandText & " AND "
-'            End If
-'        Next i
-        Dim whereClause As String
-        For i = 0 To UBound(featureInfo, 2)
-            If featureInfo(6, i) = "Attribute" Then
-                'Filter out Attribute failures by column
-                whereClause = whereClause & "(Pvt.[" & featureInfo(0, i) & "] <> 1 OR Pvt.[" & featureInfo(0, i) & "] IS NULL)"
-            Else
-                'Filter out Variable failure by column
-                whereClause = whereClause & "(Pvt.[" & featureInfo(0, i) & "] <> 99.998 OR Pvt.[" & featureInfo(0, i) & "] IS NULL)"
-            End If
-            'if its the last statement, no need for the AND
-            If i <> UBound(featureInfo, 2) Then
-                whereClause = whereClause & " AND "
-            End If
-        Next i
-        
-        .CommandText = .CommandText & whereClause
-        
-        
-        Dim params() As Variant
-        params = Array("r.RunName", "rt.RoutineName")
-        Dim values() As Variant
-        values = Array(jobNum, routine)
-
-        For i = 0 To 3
-            Dim partParam As ADODB.Parameter
-            Set partParam = .CreateParameter(Name:=params(i Mod 2), Type:=adVarChar, Size:=255, Direction:=adParamInput, Value:=values(i Mod 2))
-            .Parameters.Append partParam
-        Next i
-
-    End With
-
-    Set sqlRecordSet = New ADODB.Recordset
-    sqlRecordSet.CursorLocation = adUseClient
-    sqlRecordSet.Open Source:=sqlCommand, CursorType:=adOpenStatic
+    query = Replace(Split(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_FeatureMeasurements.sql").ReadAll, ";")(0), "{Features}", delimFeatures)
     
+    Dim whereClause As String
+    For i = 0 To UBound(featureInfo, 2)
+        If featureInfo(6, i) = "Attribute" Then
+            'Filter out Attribute failures by column
+            whereClause = whereClause & "(Pvt.[" & featureInfo(0, i) & "] <> 1 OR Pvt.[" & featureInfo(0, i) & "] IS NULL)"
+        Else
+            'Filter out Variable failure by column
+            whereClause = whereClause & "(Pvt.[" & featureInfo(0, i) & "] <> 99.998 OR Pvt.[" & featureInfo(0, i) & "] IS NULL)"
+        End If
+        'if its the last statement, no need for the AND
+        If i <> UBound(featureInfo, 2) Then
+            whereClause = whereClause & " AND "
+        End If
+    Next i
+
+    query = query & whereClause
+    params = Array("r.RunName," & jobNum, "rt.RoutineName," & routine, "r.RunName," & jobNum, "rt.RoutineName," & routine)
+    
+    Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.ML7)
 
     If Not sqlRecordSet.EOF Then
         GetFeatureMeasuredValues = sqlRecordSet.GetRows()
@@ -251,36 +245,14 @@ Function GetFeatureMeasuredValues(jobNum As String, routine As String, delimFeat
 
 End Function
 
-Function GetAllFeatureMeasuredValues(jobNum As String, routine As String, features As String) As Variant()
-    Call Init_Connections
+    'Dont filter out any values
+Function GetAllFeatureMeasuredValues(jobNum As String, routine As String, delimFeatures As String) As Variant()
 
     Set fso = New FileSystemObject
-
-    Set sqlCommand = New ADODB.Command
-    With sqlCommand
-        .ActiveConnection = ML7DataBaseConnection
-        .CommandType = adCmdText
-            'TODO: we need to later conditionally change which of the sql arrays we will be using depending on the toggle Button
-        .CommandText = Replace(Split(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_FeatureMeasurements.sql").ReadAll, ";")(1), "{Features}", features)
-'        .CommandText = Replace(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_FeatureMeasurements.sql").ReadAll, "{Features}", features)
-        
-        Dim params() As Variant
-        params = Array("r.RunName", "rt.RoutineName")
-        Dim values() As Variant
-        values = Array(jobNum, routine)
-
-        For i = 0 To 3
-            Dim partParam As ADODB.Parameter
-            Set partParam = .CreateParameter(Name:=params(i Mod 2), Type:=adVarChar, Size:=255, Direction:=adParamInput, Value:=values(i Mod 2))
-            .Parameters.Append partParam
-        Next i
-
-    End With
-
-    Set sqlRecordSet = New ADODB.Recordset
-    sqlRecordSet.CursorLocation = adUseClient
-    sqlRecordSet.Open Source:=sqlCommand, CursorType:=adOpenStatic
+    query = Replace(Split(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_FeatureMeasurements.sql").ReadAll, ";")(1), "{Features}", delimFeatures)
+    params = Array("r.RunName," & jobNum, "rt.RoutineName," & routine, "r.RunName," & jobNum, "rt.RoutineName," & routine)
     
+    Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.ML7)
 
     If Not sqlRecordSet.EOF Then
         GetAllFeatureMeasuredValues = sqlRecordSet.GetRows()
@@ -289,140 +261,14 @@ Function GetAllFeatureMeasuredValues(jobNum As String, routine As String, featur
 
 End Function
 
-
-'Holding onto these functions just in case, but may not need them
-
-'Function GetFIFeatureMeasuredValues(jobNum As String, routine As String, features As String, featureInfo() As Variant) As Variant()
-'    Call Init_Connections
-'
-'    Set fso = New FileSystemObject
-'
-'    Set sqlCommand = New ADODB.Command
-'    With sqlCommand
-'        .ActiveConnection = ML7DataBaseConnection
-'        .CommandType = adCmdText
-'            'TODO: we need to later conditionally change which of the sql arrays we will be using depending on the toggle Button
-'        .CommandText = Replace(Split(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_FeatureMeasurements.sql").ReadAll, ";")(1), "{Features}", features)
-''        .CommandText = Replace(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_FeatureMeasurements.sql").ReadAll, "{Features}", features)
-'
-'        'TODO: for UBound(featureInfo,2) we need to add to select statements either src3.[whatever] or COALESCE(whatever,2)[whtaever]
-'        'depending on featureInfo(6,i) attribute or variable
-'        'featureInfo(0,i) = 0_003_00  feature name
-'        'featureInfo(6,i) = Attribute/Variable  feature type
-'
-'        Dim whereClause As String
-'        For i = 0 To UBound(featureInfo)
-'            If feautreInfo(6, i) = "Attribute" Then
-'                whereClause = whereClause & "(Pvt.[" & featureInfo(0, i) & "] <> 1 OR Pvt.[(i)] IS NULL)"
-'            End If
-'
-'
-'
-'            If i <> UBound(featureInfo, 2) Then
-'                whereClause = whereClause & " AND "
-'            End If
-'        Next i
-'
-'        Dim params() As Variant
-'        params = Array("r.RunName", "rt.RoutineName")
-'        Dim values() As Variant
-'        values = Array(jobNum, routine)
-'
-'        For i = 0 To 3
-'            Dim partParam As ADODB.Parameter
-'            Set partParam = .CreateParameter(Name:=params(i Mod 2), Type:=adVarChar, Size:=255, Direction:=adParamInput, Value:=values(i Mod 2))
-'            .Parameters.Append partParam
-'        Next i
-'
-'    End With
-'
-'    Set sqlRecordSet = New ADODB.Recordset
-'    sqlRecordSet.CursorLocation = adUseClient
-'    sqlRecordSet.Open Source:=sqlCommand, CursorType:=adOpenStatic
-'
-'
-'    If Not sqlRecordSet.EOF Then
-'        GetFIFeatureMeasuredValues = sqlRecordSet.GetRows()
-'        Exit Function
-'    End If
-'
-'End Function
-'
-'Function GetAllFIFeatureMeasuredValues(jobNum As String, routine As String, features As String, featureInfo() As Variant) As Variant()
-'    Call Init_Connections
-'
-'    Set fso = New FileSystemObject
-'
-'    Set sqlCommand = New ADODB.Command
-'    With sqlCommand
-'        .ActiveConnection = ML7DataBaseConnection
-'        .CommandType = adCmdText
-'            'TODO: we need to later conditionally change which of the sql arrays we will be using depending on the toggle Button
-'        .CommandText = Replace(Split(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_FeatureMeasurements.sql").ReadAll, ";")(1), "{Features}", features)
-''        .CommandText = Replace(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_FeatureMeasurements.sql").ReadAll, "{Features}", features)
-'
-'        'TODO: for UBound(featureInfo,2) we need to add to select statements either src3.[whatever] or COALESCE(whatever,2)[whtaever]
-'        'depending on featureInfo(6,i) attribute or variable
-'        Dim selectClause As String
-'        For i = 0 To UBound(featureInfo)
-'
-'
-'        Next i
-'
-'        Dim params() As Variant
-'        params = Array("r.RunName", "rt.RoutineName")
-'        Dim values() As Variant
-'        values = Array(jobNum, routine)
-'
-'        For i = 0 To 3
-'            Dim partParam As ADODB.Parameter
-'            Set partParam = .CreateParameter(Name:=params(i Mod 2), Type:=adVarChar, Size:=255, Direction:=adParamInput, Value:=values(i Mod 2))
-'            .Parameters.Append partParam
-'        Next i
-'
-'    End With
-'
-'    Set sqlRecordSet = New ADODB.Recordset
-'    sqlRecordSet.CursorLocation = adUseClient
-'    sqlRecordSet.Open Source:=sqlCommand, CursorType:=adOpenStatic
-'
-'
-'    If Not sqlRecordSet.EOF Then
-'        GetAllFIFeatureMeasuredValues = sqlRecordSet.GetRows()
-'        Exit Function
-'    End If
-'
-'End Function
-
-
+    'Date, Employee ID - Filter out failed observations
 Function GetFeatureTraceabilityData(jobNum As String, routine As String) As Variant()
-    Call Init_Connections
 
     Set fso = New FileSystemObject
-
-    Set sqlCommand = New ADODB.Command
-    With sqlCommand
-        .ActiveConnection = ML7DataBaseConnection
-        .CommandType = adCmdText
-        .CommandText = Split(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_ObsTraceability.sql").ReadAll, ";")(0)
-        
-        Dim params() As Variant
-        params = Array("r.RunName", "rt.RoutineName")
-        Dim values() As Variant
-        values = Array(jobNum, routine)
-
-        For i = 0 To 3
-            Dim partParam As ADODB.Parameter
-            Set partParam = .CreateParameter(Name:=params(i Mod 2), Type:=adVarChar, Size:=255, Direction:=adParamInput, Value:=values(i Mod 2))
-            .Parameters.Append partParam
-        Next i
-
-    End With
-
-    Set sqlRecordSet = New ADODB.Recordset
-    sqlRecordSet.CursorLocation = adUseClient
-    sqlRecordSet.Open Source:=sqlCommand, CursorType:=adOpenStatic
+    query = Split(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_ObsTraceability.sql").ReadAll, ";")(0)
+    params = Array("r.RunName," & jobNum, "rt.RoutineName," & routine, "r.RunName," & jobNum, "rt.RoutineName," & routine)
     
+    Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.ML7)
 
     If Not sqlRecordSet.EOF Then
         GetFeatureTraceabilityData = sqlRecordSet.GetRows()
@@ -431,65 +277,29 @@ Function GetFeatureTraceabilityData(jobNum As String, routine As String) As Vari
 
 End Function
 
+    'Date, Employee ID - Dont Filter out failed observations
 Function GetAllFeatureTraceabilityData(jobNum As String, routine As String) As Variant()
-    Call Init_Connections
 
     Set fso = New FileSystemObject
-
-    Set sqlCommand = New ADODB.Command
-    With sqlCommand
-        .ActiveConnection = ML7DataBaseConnection
-        .CommandType = adCmdText
-        .CommandText = Split(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_ObsTraceability.sql").ReadAll, ";")(1)
-        
-        Dim params() As Variant
-        params = Array("r.RunName", "rt.RoutineName")
-        Dim values() As Variant
-        values = Array(jobNum, routine)
-
-        For i = 0 To 3
-            Dim partParam As ADODB.Parameter
-            Set partParam = .CreateParameter(Name:=params(i Mod 2), Type:=adVarChar, Size:=255, Direction:=adParamInput, Value:=values(i Mod 2))
-            .Parameters.Append partParam
-        Next i
-
-    End With
-
-    Set sqlRecordSet = New ADODB.Recordset
-    sqlRecordSet.CursorLocation = adUseClient
-    sqlRecordSet.Open Source:=sqlCommand, CursorType:=adOpenStatic
+    query = Split(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_ObsTraceability.sql").ReadAll, ";")(1)
+    params = Array("r.RunName," & jobNum, "rt.RoutineName," & routine, "r.RunName," & jobNum, "rt.RoutineName," & routine)
     
+    Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.ML7)
 
     If Not sqlRecordSet.EOF Then
         GetAllFeatureTraceabilityData = sqlRecordSet.GetRows()
         Exit Function
     End If
-
 End Function
 
-
+    'Called by userform to determine how many Inspections it should require for FI_DIM
 Function IsAllAttribrute(routine As Variant) As Boolean
-    Call Init_Connections
 
     Set fso = New FileSystemObject
+    query = fso.OpenTextFile(DataSources.QUERIES_PATH & "AnyVariables.sql").ReadAll
+    params = Array("r.RoutineName," & routine)
 
-    Set sqlCommand = New ADODB.Command
-    With sqlCommand
-        .ActiveConnection = ML7DataBaseConnection
-        .CommandType = adCmdText
-        .CommandText = fso.OpenTextFile(DataSources.QUERIES_PATH & "AnyVariables.sql").ReadAll
-        
-        Dim partParam As ADODB.Parameter
-        Set partParam = .CreateParameter(Name:="r.RoutineName", Type:=adVarChar, Size:=255, Direction:=adParamInput, Value:=routine)
-        
-        .Parameters.Append partParam
-
-    End With
-
-    Set sqlRecordSet = New ADODB.Recordset
-    sqlRecordSet.CursorLocation = adUseClient
-    sqlRecordSet.Open Source:=sqlCommand, CursorType:=adOpenStatic
-    
+    Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.ML7)
 
     If sqlRecordSet.EOF Then
         IsAllAttribrute = True
@@ -499,126 +309,51 @@ Function IsAllAttribrute(routine As Variant) As Boolean
 
 End Function
 
-
-
-'see how this can be called recursively??
-'Function SanityTest()
-'    Call Init_Connections
-'
-'    Set fso = New FileSystemObject
-'
-'    Set sqlCommand = New ADODB.Command
-'    With sqlCommand
-'        .ActiveConnection = ML7DataBaseConnection
-'        .CommandType = adCmdText
-'        .CommandText = fso.OpenTextFile(DataSources.QUERIES_PATH & "ParameterSanityTest.sql").ReadAll
-'
-'        Dim params() As Variant
-'        params = Array("r.RunName", "rt.RoutineName")
-'        Dim values() As Variant
-'        values = Array("SD1284", "DRW-00717-01_RAJ_IP_IXSHIFT")
-'
-'        For i = 0 To 3
-'            Dim partParam As ADODB.Parameter
-'            Set partParam = .CreateParameter(Name:=params(i Mod 2), Type:=adVarChar, Size:=255, Direction:=adParamInput, Value:=values(i Mod 2))
-'            .Parameters.Append partParam
-'        Next i
-'
-'    End With
-'
-'    Set sqlRecordSet = New ADODB.Recordset
-'    sqlRecordSet.CursorLocation = adUseClient
-'    sqlRecordSet.Open Source:=sqlCommand, CursorType:=adOpenStatic
-'
-'
-'    If Not sqlRecordSet.EOF Then
-'        While Not sqlRecordSet.EOF
-'            With sqlRecordSet
-'                Debug.Print (.Fields(0).Value & vbTab & .Fields(1).Value & vbTab & .Fields(2).Value)
-'            End With
-'
-'            sqlRecordSet.MoveNext
-'
-'        Wend
-'
-'
-'    End If
-'
-'End Function
-
-' This and the function below it need to be compressed
-Function GetPartRoutineList(partNum As String, Revision As String) As ADODB.Recordset
-    Call Init_Connections
-
+    'All of the routines set up for this Part Number
+Function GetPartRoutineList(partNum As String, Revision As String) As Variant()
     Set fso = New FileSystemObject
     Dim mlPartNum As String
     mlPartNum = partNum & "_" & Revision
+    query = fso.OpenTextFile(DataSources.QUERIES_PATH & "PartRoutineList.sql").ReadAll
+    params = Array("p.PartName," & mlPartNum)
 
-    Set sqlCommand = New ADODB.Command
-    With sqlCommand
-        .ActiveConnection = ML7DataBaseConnection
-        .CommandType = adCmdText
-        .CommandText = fso.OpenTextFile(DataSources.QUERIES_PATH & "PartRoutineList.sql").ReadAll
-        
-        Dim partParam As ADODB.Parameter
-        Set partParam = .CreateParameter(Name:="p.PartName", Type:=adVarChar, Size:=255, Direction:=adParamInput, Value:=mlPartNum)
-        .Parameters.Append partParam
-    End With
-
-    Set sqlRecordSet = New ADODB.Recordset
-    'Location and Static type allow us to access the total number of records, will need this for callback function later
-    sqlRecordSet.CursorLocation = adUseClient
-    sqlRecordSet.Open Source:=sqlCommand, CursorType:=adOpenStatic
+    Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.ML7)
     
-
     If Not sqlRecordSet.EOF Then
-        Set GetPartRoutineList = sqlRecordSet.Clone
+        GetPartRoutineList = sqlRecordSet.GetRows()
         Exit Function
     End If
-
-    'TODO: Error here on the available Routines, None should be handled differently than an actual error
-    Set GetPartRoutineList = Nothing
 End Function
 
-Function GetRunRoutineList(jobNum As String) As ADODB.Recordset
-    Call Init_Connections
-
+    'All the routines created for this run
+Function GetRunRoutineList(jobNum As String) As Variant()
     Set fso = New FileSystemObject
+    query = fso.OpenTextFile(DataSources.QUERIES_PATH & "RunRoutineList.sql").ReadAll
+    params = Array("r.RunName," & jobNum)
 
-    Set sqlCommand = New ADODB.Command
-    With sqlCommand
-        .ActiveConnection = ML7DataBaseConnection
-        .CommandType = adCmdText
-        .CommandText = fso.OpenTextFile(DataSources.QUERIES_PATH & "RunRoutineList.sql").ReadAll
-        
-        Dim partParam As ADODB.Parameter
-        Set partParam = .CreateParameter(Name:="r.RunName", Type:=adVarChar, Size:=255, Direction:=adParamInput, Value:=jobNum)
-        .Parameters.Append partParam
-    End With
-
-    Set sqlRecordSet = New ADODB.Recordset
-    sqlRecordSet.CursorLocation = adUseClient
-    sqlRecordSet.Open Source:=sqlCommand, CursorType:=adOpenStatic
+    Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.ML7)
     
-
     If Not sqlRecordSet.EOF Then
-        Set GetRunRoutineList = sqlRecordSet.Clone
+        GetRunRoutineList = sqlRecordSet.GetRows()
         Exit Function
     End If
-
-    'TODO: Error here on the available Routines, None should be handled differently than an actual error
-    Set GetRunRoutineList = Nothing
 End Function
+
+
+
+
+
+
+
+
 
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 '               InspectionKiosk
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 
-'TODO: this is a WIP, needs to be tested still
-
 Function GetCustomerName(jobNum As String) As String
-    Call Init_Connections
-
+    Set fso = New FileSystemObject
+    query = "SELECT CustomerName FROM InspectionKiosk.dbo.CustomerTranslation WHERE Abbreviation=?"
     Dim searchParam As String
 
     'If our job is an inventory job like 'NVxxx' then, we can just search by the first two characters
@@ -630,20 +365,10 @@ Function GetCustomerName(jobNum As String) As String
     GetJobInformation JobID:=jobNum, custName:=searchParam
 
 20
-    Set sqlCommand = New ADODB.Command
-    With sqlCommand
-        .ActiveConnection = KioskDataBaseConnection
-        .CommandType = adCmdText
-        .CommandText = "SELECT CustomerName FROM InspectionKiosk.dbo.CustomerTranslation WHERE Abbreviation=?"
 
-        Dim partParam As ADODB.Parameter
-        Set partParam = .CreateParameter(Name:="Abbreviation", Type:=adVarChar, Size:=255, Direction:=adParamInput, Value:=searchParam)
-        .Parameters.Append partParam
-    End With
+    params = Array("Abbreviation," & searchParam)
 
-    Set sqlRecordSet = New ADODB.Recordset
-    sqlRecordSet.CursorLocation = adUseClient
-    sqlRecordSet.Open Source:=sqlCommand, CursorType:=adOpenStatic
+    Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.Kiosk)
 
 
     If Not sqlRecordSet.EOF Then
@@ -651,78 +376,22 @@ Function GetCustomerName(jobNum As String) As String
         Exit Function
     End If
 
-
-    'TODO: Error here, we don't can't find the customer name in our table, the QE should update the Database
-    GetCustomerName = vbNullString
-
 End Function
 
 Function GetCellLeadEmail(cell As String) As String
-    Call Init_Connections
+    Set fso = New FileSystemObject
+    query = "SELECT Email FROM InspectionKiosk.dbo.VettingEmails WHERE Cell=?"
+    params = Array("Cell," & cell)
 
-20
-    Set sqlCommand = New ADODB.Command
-    With sqlCommand
-        .ActiveConnection = KioskDataBaseConnection
-        .CommandType = adCmdText
-        .CommandText = "SELECT Email FROM InspectionKiosk.dbo.VettingEmails WHERE Cell=?"
-
-        Dim partParam As ADODB.Parameter
-        Set partParam = .CreateParameter(Name:="Cell", Type:=adVarChar, Size:=255, Direction:=adParamInput, Value:=cell)
-        .Parameters.Append partParam
-    End With
-
-    Set sqlRecordSet = New ADODB.Recordset
-    sqlRecordSet.CursorLocation = adUseClient
-    sqlRecordSet.Open Source:=sqlCommand, CursorType:=adOpenStatic
-
+    Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.Kiosk)
 
     If Not sqlRecordSet.EOF Then
         GetCellLeadEmail = sqlRecordSet.Fields(0).Value
         Exit Function
     End If
 
-
-    'TODO: Error here, we don't can't find the customer name in our table, the QE should update the Database
-    GetCellLeadEmail = vbNullString
+'Error here
 
 End Function
-
-
-
-''''''
-'
-'
-'
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-'               Test
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-
-Sub testMeasuredValues()
-    Call Init_Connections
-
-    Set fso = New FileSystemObject
-
-    Set sqlCommand = New ADODB.Command
-    With sqlCommand
-        .ActiveConnection = ML7DataBaseConnection
-        .CommandType = adCmdText
-            'TODO: we need to later conditionally change which of the sql arrays we will be using depending on the toggle Button
-        .CommandText = Split(fso.OpenTextFile(DataSources.QUERIES_PATH & "AllvaluesTest.sql").ReadAll, ";")(2)
-
-    End With
-
-    Set sqlRecordSet = New ADODB.Recordset
-    sqlRecordSet.CursorLocation = adUseClient
-    sqlRecordSet.Open Source:=sqlCommand, CursorType:=adOpenStatic
-    
-    Dim output() As Variant
-    output = sqlRecordSet.GetRows()
-    If Not sqlRecordSet.EOF Then
-        MsgBox ("end of sub")
-        Exit Sub
-    End If
-
-End Sub
 
 
