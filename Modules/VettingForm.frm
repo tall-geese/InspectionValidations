@@ -62,7 +62,7 @@ Private Sub UserForm_Initialize()
             routineType = Split(RibbonCommands.partRoutineList(0, i), RibbonCommands.partNum & "_" & RibbonCommands.rev & "_")(1)
             
             
-            On Error GoTo NextRoutine
+            On Error GoTo RoutineSwitchErr
             
             'Given routine of a name like "DRW-00717-01_RAG_IP_SYLVAC", we're trying to grab the "IP_SYLVAC"
             Select Case (routineType)
@@ -122,7 +122,6 @@ Private Sub UserForm_Initialize()
                     .Visible = True
             End Select
         End With
-NextRoutine:
         
     Next i
     
@@ -182,6 +181,10 @@ UniqueRoutineErr:
                 vbCrLf & "Which doesn't match any of our required routines" & _
                 vbCrLf & "If a routine name changed, it could cause misalignment here", vbInformation)
    GoTo NextControl
+
+RoutineSwitchErr:
+       Result = MsgBox("Error when determining observations needed for : " & RibbonCommands.runRoutineList(0, i) & vbCrLf & _
+                Err.description, vbCritical)
 
 End Sub
 

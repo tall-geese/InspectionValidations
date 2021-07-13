@@ -58,7 +58,7 @@ Sub Init_Connections()
         KioskDataBaseConnection.Open
     End If
     
-    
+    On Error GoTo 0
        
         
     Exit Sub
@@ -75,6 +75,8 @@ Private Sub ExecQuery(query As String, params() As Variant, conn_enum As Connect
 
     Call Init_Connections
     Set fso = New FileSystemObject
+
+    On Error GoTo QueryFailed
 
     Set sqlCommand = New ADODB.Command
     With sqlCommand
@@ -95,11 +97,19 @@ Private Sub ExecQuery(query As String, params() As Variant, conn_enum As Connect
     Set sqlRecordSet = New ADODB.Recordset
     sqlRecordSet.Open sqlCommand
 
+    On Error GoTo 0
+
     If sqlRecordSet.EOF Then
+        Err.Raise Number:=vbObjectError + 2000, description:="sub:ExecQuery, no results"
         'Raise an error here that we returned no rows? That would mean someone created a routine but didnt do any inpsections
         'See if we can cascade the error upwards where the routine name could be accessed.
     End If
-
+    
+    Exit Sub
+    
+QueryFailed:
+    Err.Raise Number:=vbObjectError + 3000, description:="sub:ExecQuery - params" & vbCrLf & Join(params, vbCrLf) & vbCrLf & Err.description
+    
 End Sub
 
 
@@ -152,6 +162,7 @@ Function GetJobInformation(JobID As String, Optional ByRef partNum As Variant, O
     query = fso.OpenTextFile(DataSources.QUERIES_PATH & "EpicorJobInfo.sql").ReadAll
     
     
+    On Error GoTo JobInfoErr:
     Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.E10)
     
     
@@ -172,27 +183,34 @@ Function GetJobInformation(JobID As String, Optional ByRef partNum As Variant, O
         GetJobInformation = True
         Exit Function
     End If
-    
+10
     'If now rows are returned, the job doesn't exist
     GetJobInformation = False
+    Exit Function
+    
+JobInfoErr:
+    'if errored because recordset.EOF, then pass back to RibbonCommands and let it handle this
+    If Err.Number = vbObjectError + 2000 Then
+        Resume Next
+    Else
+        Err.Raise Number:=Err.Number, description:="Func: E10-GetJobInformation" & vbCrLf & Err.description
+    End If
 End Function
 
 
 Function Get1XSHIFTInsps(JobID As String) As String
-
+    On Error GoTo ShiftERR
     Set fso = New FileSystemObject
     params = Array("jo.JobNum," & JobID)
     query = fso.OpenTextFile(DataSources.QUERIES_PATH & "1XSHIFT.sql").ReadAll
 
     Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.E10)
     
-    If Not sqlRecordSet.EOF Then
-        Get1XSHIFTInsps = sqlRecordSet.Fields(1).Value
-        Exit Function
-    End If
+    Get1XSHIFTInsps = sqlRecordSet.Fields(1).Value
+    Exit Function
     
-    'TODO: Error here, we will need to the customer name to determine the workbook directory for AQL
-    Get1XSHIFTInsps = "None"
+ShiftERR:
+    Err.Raise Number:=Err.Number, description:="Func: E10-Get1XSHIFTInsps" & vbCrLf & Err.description
 End Function
 
 
@@ -209,23 +227,24 @@ End Function
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 
 Function GetFeatureHeaderInfo(jobNum As String, routine As String) As Variant()
-    
+    On Error GoTo FeatureHeaderErr
     Set fso = New FileSystemObject
     query = fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_FeatureHeaderInfo.sql").ReadAll
     params = Array("r.RunName," & jobNum, "rt.RoutineName," & routine)
     
     Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.ML7)
     
-    If Not sqlRecordSet.EOF Then
-        GetFeatureHeaderInfo = sqlRecordSet.GetRows()
-        Exit Function
-    End If
-
+    GetFeatureHeaderInfo = sqlRecordSet.GetRows()
+    Exit Function
+    
+FeatureHeaderErr:
+    Err.Raise Number:=Err.Number, description:="Func: ML7-GetFeatureHeaderInfo" & vbCrLf & Err.description
 End Function
 
     'Get all observation values, filter out failures
 Function GetFeatureMeasuredValues(jobNum As String, routine As String, delimFeatures As String, featureInfo() As Variant) As Variant()
 
+    On Error GoTo FeatureValuesErr
     Set fso = New FileSystemObject
     query = Replace(Split(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_FeatureMeasurements.sql").ReadAll, ";")(0), "{Features}", delimFeatures)
     
@@ -249,79 +268,88 @@ Function GetFeatureMeasuredValues(jobNum As String, routine As String, delimFeat
     
     Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.ML7)
 
-    If Not sqlRecordSet.EOF Then
-        GetFeatureMeasuredValues = sqlRecordSet.GetRows()
-        Exit Function
-    End If
+    GetFeatureMeasuredValues = sqlRecordSet.GetRows()
+    Exit Function
 
+FeatureValuesErr:
+    Err.Raise Number:=Err.Number, description:="Func: ML7-GetFeatureMeasuredValues" & vbCrLf & Err.description
 End Function
 
     'Get all observation values, don't filter
 Function GetAllFeatureMeasuredValues(jobNum As String, routine As String, delimFeatures As String) As Variant()
-
+    On Error GoTo AllFeatureValuesErr
     Set fso = New FileSystemObject
     query = Replace(Split(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_FeatureMeasurements.sql").ReadAll, ";")(1), "{Features}", delimFeatures)
     params = Array("r.RunName," & jobNum, "rt.RoutineName," & routine, "r.RunName," & jobNum, "rt.RoutineName," & routine)
     
     Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.ML7)
 
-    If Not sqlRecordSet.EOF Then
-        GetAllFeatureMeasuredValues = sqlRecordSet.GetRows()
-        Exit Function
-    End If
-
+    GetAllFeatureMeasuredValues = sqlRecordSet.GetRows()
+    Exit Function
+    
+AllFeatureValuesErr:
+    Err.Raise Number:=Err.Number, description:="Func: ML7-GetAllFeatureMeasuredValues" & vbCrLf & Err.description
 End Function
 
     'Date, Employee ID - Filter out failed observations
 Function GetFeatureTraceabilityData(jobNum As String, routine As String) As Variant()
-
+    On Error GoTo FeatureTraceabilityErr
     Set fso = New FileSystemObject
     query = Split(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_ObsTraceability.sql").ReadAll, ";")(0)
     params = Array("r.RunName," & jobNum, "rt.RoutineName," & routine, "r.RunName," & jobNum, "rt.RoutineName," & routine)
     
     Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.ML7)
 
-    If Not sqlRecordSet.EOF Then
-        GetFeatureTraceabilityData = sqlRecordSet.GetRows()
-        Exit Function
-    End If
-
+    GetFeatureTraceabilityData = sqlRecordSet.GetRows()
+    Exit Function
+    
+FeatureTraceabilityErr:
+    Err.Raise Number:=Err.Number, description:="Func: ML7-GetFeatureTraceabilityData" & vbCrLf & Err.description
 End Function
 
     'Date, Employee ID - Dont Filter out failed observations
 Function GetAllFeatureTraceabilityData(jobNum As String, routine As String) As Variant()
-
+    On Error GoTo AllFeatureTraceabilityErr
     Set fso = New FileSystemObject
     query = Split(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_ObsTraceability.sql").ReadAll, ";")(1)
     params = Array("r.RunName," & jobNum, "rt.RoutineName," & routine, "r.RunName," & jobNum, "rt.RoutineName," & routine)
     
     Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.ML7)
 
-    If Not sqlRecordSet.EOF Then
-        GetAllFeatureTraceabilityData = sqlRecordSet.GetRows()
-        Exit Function
-    End If
+    GetAllFeatureTraceabilityData = sqlRecordSet.GetRows()
+    Exit Function
+    
+AllFeatureTraceabilityErr:
+    Err.Raise Number:=Err.Number, description:="Func: ML7-GetAllFeatureTraceabilityData" & vbCrLf & Err.description
 End Function
 
     'Called by userform to determine how many Inspections it should require for FI_DIM
 Function IsAllAttribrute(routine As Variant) As Boolean
-
+    On Error GoTo AllAttribruteErr
     Set fso = New FileSystemObject
     query = fso.OpenTextFile(DataSources.QUERIES_PATH & "AnyVariables.sql").ReadAll
     params = Array("r.RoutineName," & routine)
 
     Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.ML7)
-
-    If sqlRecordSet.EOF Then
+    
+AllAttribruteErr:
+    'if errored because recordset.EOF, thats fine, it means it is all attribute features
+    If Err.Number = vbObjectError + 2000 Then
         IsAllAttribrute = True
-    Else
+        Exit Function
+    'otherwise it didn't error and we aren't at the end of the recordset
+    ElseIf Not (sqlRecordSet.EOF) Then
         IsAllAttribrute = False
+        Exit Function
+    Else
+        Err.Raise Number:=Err.Number, description:="Func: ML7-IsAllAttribrute" & vbCrLf & Err.description
     End If
 
 End Function
 
     'All of the routines set up for this Part Number
 Function GetPartRoutineList(partNum As String, Revision As String) As Variant()
+    On Error GoTo PartRoutineListErr
     Set fso = New FileSystemObject
     Dim mlPartNum As String
     mlPartNum = partNum & "_" & Revision
@@ -330,14 +358,16 @@ Function GetPartRoutineList(partNum As String, Revision As String) As Variant()
 
     Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.ML7)
     
-    If Not sqlRecordSet.EOF Then
-        GetPartRoutineList = sqlRecordSet.GetRows()
-        Exit Function
-    End If
+    GetPartRoutineList = sqlRecordSet.GetRows()
+    Exit Function
+    
+PartRoutineListErr:
+    Err.Raise Number:=Err.Number, description:="Func: ML7-GetPartRoutineList" & vbCrLf & Err.description
 End Function
 
     'All the routines created for this run
 Function GetRunRoutineList(jobNum As String) As Variant()
+    On Error GoTo RunRoutineListErr
     Set fso = New FileSystemObject
     query = fso.OpenTextFile(DataSources.QUERIES_PATH & "RunRoutineList.sql").ReadAll
     params = Array("r.RunName," & jobNum)
@@ -348,6 +378,9 @@ Function GetRunRoutineList(jobNum As String) As Variant()
         GetRunRoutineList = sqlRecordSet.GetRows()
         Exit Function
     End If
+    
+RunRoutineListErr:
+    Err.Raise Number:=Err.Number, description:="Func: ML7-GetRunRoutineList" & vbCrLf & Err.description
 End Function
 
 
@@ -376,7 +409,7 @@ Function GetCustomerName(jobNum As String) As String
     GetJobInformation JobID:=jobNum, custName:=searchParam
 
 20
-
+    On Error GoTo CustomerNameErr
     Set fso = New FileSystemObject
     query = "SELECT CustomerName FROM InspectionKiosk.dbo.CustomerTranslation WHERE Abbreviation=?"
     params = Array("Abbreviation," & searchParam)
@@ -384,15 +417,16 @@ Function GetCustomerName(jobNum As String) As String
     Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.Kiosk)
 
 
-    If Not sqlRecordSet.EOF Then
-        GetCustomerName = sqlRecordSet.Fields(0).Value
-        Exit Function
-    End If
-
+    GetCustomerName = sqlRecordSet.Fields(0).Value
+    Exit Function
+    
+CustomerNameErr:
+    Err.Raise Number:=Err.Number, description:="Func: IK-GetCustomerName" & vbCrLf & Err.description
 End Function
 
     'Can't use static emails since positions often change, update the emails in the database accordingly.
 Function GetCellLeadEmail(cell As String) As String
+    On Error GoTo GetEmailErr
     Set fso = New FileSystemObject
     query = "SELECT Email FROM InspectionKiosk.dbo.VettingEmails WHERE Cell=?"
     params = Array("Cell," & cell)
@@ -404,8 +438,8 @@ Function GetCellLeadEmail(cell As String) As String
         Exit Function
     End If
 
-'Error here
-
+GetEmailErr:
+    Err.Raise Number:=Err.Number, description:="Func: IK-GetCellLeadEmail" & vbCrLf & Err.description
 End Function
 
 

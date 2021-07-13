@@ -17,7 +17,7 @@ Attribute VB_Exposed = True
 '*************************************************************************************************
 
 Sub populateJobHeaders(jobNum As String, routine As Variant, customer As String, machine As String, partNum As String, rev As String, partDesc As String)
-    
+    On Error GoTo PopHeadersErr:
     Call Cleanup
     
     'If somebody entered nonsense into the Routine ComboBox, then we clear our variables and call this sub
@@ -39,10 +39,15 @@ Sub populateJobHeaders(jobNum As String, routine As Variant, customer As String,
         
         .protect Password:="3063bqa", AllowFormattingCells:=True
     End With
+    Exit Sub
+
+PopHeadersErr:
+    Err.Raise Number:=Err.Number, description:="sub: populateJobHeaders" & vbCrLf & Err.description
 
 End Sub
 
 Public Sub populateReport(featureInfo() As Variant, featureMeasurements() As Variant, featureTraceability() As Variant)
+    On Error GoTo PopulateReportErr
 
     'If user entered nonsense into the Routine ComboBox, we end up calling this sub but skip setting anything
     If (Not featureInfo) = -1 Or (Not featureMeasurements) = -1 Then Exit Sub
@@ -66,7 +71,10 @@ Public Sub populateReport(featureInfo() As Variant, featureMeasurements() As Var
     Next i
 
     Application.ScreenUpdating = True
-
+    Exit Sub
+    
+PopulateReportErr:
+    Err.Raise Number:=Err.Number, description:=Err.description
 End Sub
 
 Private Sub populateHeaderFeatureInfo(featureInfo() As Variant)
@@ -78,6 +86,8 @@ Private Sub populateHeaderFeatureInfo(featureInfo() As Variant)
     'featureInfo(4,i) -> Upper Tolerance
     'featureInfo(5,i) -> Gauge ID
     'featureInfo(6,i) -> Variable / Attribute
+    
+    On Error GoTo FeatureHeadersErr
     
     For i = 0 To UBound(featureInfo, 2)
             Dim activePageNum As Integer
@@ -105,9 +115,12 @@ Private Sub populateHeaderFeatureInfo(featureInfo() As Variant)
                 .Range(colLetter & "19").Value = featureInfo(5, i) 'Gauge
                 .Range(colLetter & "8").Value = featureInfo(6, i) 'Variable / Attribute  (hidden cell for later reference)
             End With
-    
     Next i
     
+    Exit Sub
+    
+FeatureHeadersErr:
+    Err.Raise Number:=Err.Number, description:="sub: populateHeaderFeatureInfo" & vbCrLf & Err.description
 End Sub
 
 Private Sub populateFeatureMeasuredValues(featureMeasurements() As Variant)
@@ -116,6 +129,7 @@ Private Sub populateFeatureMeasuredValues(featureMeasurements() As Variant)
         'm is the number of observations
     
     'featureMeasurements(n,m) -> [Value]
+    On Error GoTo FeatureValuesErr
 
     For i = 0 To UBound(featureMeasurements, 1)
             If i = 0 Then GoTo NextFeature
@@ -159,6 +173,11 @@ NextMeasurement:
 
 NextFeature:
     Next i
+    
+    Exit Sub
+    
+FeatureValuesErr:
+    Err.Raise Number:=Err.Number, description:="sub: populateFeatureMeasuredValues" & vbCrLf & Err.description
 
 End Sub
 
@@ -168,6 +187,8 @@ Private Sub populateTraceabilityInfo(featureTraceabilityInfo() As Variant, pages
     'featureTraceabilityInfo(1,j) -> EmployeeID
     'featureTraceabilityInfo(2,j) -> Observation Number
     'featureTraceabilityInfo(3,j) -> "Pass" / "Fail"
+    
+    On Error GoTo FeatureTraceErr
 
     For i = 1 To pages
         With ThisWorkbook.Worksheets("PAGE " & i)
@@ -197,7 +218,11 @@ Private Sub populateTraceabilityInfo(featureTraceabilityInfo() As Variant, pages
     
     
     Next i
+    
+    Exit Sub
 
+FeatureTraceErr:
+    Err.Raise Number:=Err.Number, description:="sub: populateTraceabilityInfo" & vbCrLf & Err.description
 
 
 End Sub
