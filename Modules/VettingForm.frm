@@ -13,6 +13,18 @@ Attribute VB_GlobalNameSpace = False
 Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
+'*************************************************************************************************
+'
+'   Vetting Form
+'       1. Everything happens in _Initialize(),
+'           We set the Routine, ObsReq and ObsFound in the respesctive routines
+'           As we go through the routines for the part number, we set the name and make the text gray
+'           When we find a routine of the same name that we ran for that job number, we fill it black to indicate a match
+'           A routine being gray doesn't auto indicate a failure, it might depend on the job type
+'*************************************************************************************************
+
+
+
 
 Dim cellLeadAlertReq As Boolean
 Dim qcManagerAlertReq As Boolean
@@ -22,7 +34,7 @@ Dim failedRoutines() As Variant
 
 
 '****************************************************************************************
-'               UserForm Functions
+'               UserForm Callbacks
 '****************************************************************************************
 
 Private Sub UserForm_Initialize()
@@ -43,9 +55,15 @@ Private Sub UserForm_Initialize()
             .Visible = False
         End With
         With Me.ObsReq.Controls(i)
+        
+            On Error GoTo RoutineNameErr
+        
             Dim routineType As String
             routineType = Split(RibbonCommands.partRoutineList(0, i), RibbonCommands.partNum & "_" & RibbonCommands.rev & "_")(1)
-            'TODO: put error handling before the switching in case we get a routine of an unexpected Name
+            
+            
+            On Error GoTo NextRoutine
+            
             'Given routine of a name like "DRW-00717-01_RAG_IP_SYLVAC", we're trying to grab the "IP_SYLVAC"
             Select Case (routineType)
                 Case "FA_FIRST"
@@ -56,7 +74,7 @@ Private Sub UserForm_Initialize()
                         .Caption = "0"
                         .Visible = False
                     End If
-                Case "FA_SYLVAC", "FA_CMM" ' TODO: something for RAM as well here
+                Case "FA_SYLVAC", "FA_CMM", "FA_RAMPROG"
                     If (RibbonCommands.chkFull_Pressed) Then
                         .Caption = "1"
                         .Visible = True
@@ -80,7 +98,7 @@ Private Sub UserForm_Initialize()
                         .Caption = "0"
                         .Visible = False
                     End If
-                Case "IP_1XSHIFT"  'TODO: sometimes we seem to have a I XSHIFT? not 1. Needs to be corrected
+                Case "IP_1XSHIFT"
                     .Caption = DatabaseModule.Get1XSHIFTInsps(JobID:=RibbonCommands.jobNumUcase)
                     .Visible = True
                 Case "IP_EDM"
@@ -97,14 +115,18 @@ Private Sub UserForm_Initialize()
                                             prodQty:=RibbonCommands.prodQty)
                     End If
                     .Visible = True
-                Case Else ''TODO: This is the placeholder for the AQL, but there might end up being other routines we missed
+                Case Else
+                    'Anything not covered above should be AQL quantity
                     .Caption = ExcelHelpers.GetAQL(customer:=RibbonCommands.customer, drawNum:=RibbonCommands.drawNum, _
                                             prodQty:=RibbonCommands.prodQty)
-                    'We  should error handle differently here in case we cannot find the excel workbook
                     .Visible = True
             End Select
         End With
+NextRoutine:
+        
     Next i
+    
+    On Error GoTo 0
     
     'Hide and reset the excess controls
     For i = i To Me.RoutineFrame.Controls.Count - 1
@@ -129,10 +151,11 @@ Private Sub UserForm_Initialize()
                 GoTo NextControl
             End If
         Next j
-        MsgBox ("Something went wrong here, couldn't find this routine")
-        'TODO: if we found a routine that doesn't belong in the list of part number applicable routines then we should error out here
+        'If we couldnt find a match between required routines and the run routine
+        GoTo UniqueRoutineErr
 NextControl:
     Next i
+    
     
     Call VetInspections
     
@@ -145,6 +168,20 @@ NextControl:
         Me.EmailButton.Enabled = False
         Me.PrintButton.SetFocus
     End If
+    
+    Exit Sub
+    
+RoutineNameErr:
+   Result = MsgBox("Could Not Parse the Routine Name " & RibbonCommands.partRoutineList(0, i) & _
+                vbCrLf & "Alert a QE" & _
+                vbCrLf & "Routines Must Follow the standard naming convention of [Part]_[Rev]_[OPtype]_[Routine SubType]", vbExclamation)
+    Exit Sub
+
+UniqueRoutineErr:
+   Result = MsgBox("Application found this routine: " & RibbonCommands.runRoutineList(0, i) & _
+                vbCrLf & "Which doesn't match any of our required routines" & _
+                vbCrLf & "If a routine name changed, it could cause misalignment here", vbInformation)
+   GoTo NextControl
 
 End Sub
 
@@ -188,45 +225,42 @@ Private Sub VetInspections()
         If (Me.ObsReq.Controls(i).Visible = True And Me.ObsFound.Controls(i).Visible = True) Then
             'If our Found Qty meets our criteria
             If (CInt(Me.ObsFound.Controls(i).Caption) >= CInt(Me.ObsReq.Controls(i).Caption)) Then
-                Debug.Print (Me.RoutineFrame.Controls(i).Caption & vbTab & "Req:" & Me.ObsReq.Controls(i).Caption & vbTab & "Found:" & Me.ObsFound.Controls(i) & vbTab & "PASS")
                 GoTo NextIter
             'If it doesn't meet our criteria
             Else
-                Debug.Print (Me.RoutineFrame.Controls(i).Caption & vbTab & "Req:" & Me.ObsReq.Controls(i).Caption & vbTab & "Found:" & Me.ObsFound.Controls(i) & vbTab & "FAIL")
                 Call setFailure(location:=i, routine:=Me.RoutineFrame.Controls(i).Caption)
                 GoTo NextIter
             End If
         
         'If we have Req Qty but didn't find results for inspected Qty
         ElseIf Me.ObsReq.Controls(i).Visible = True And Me.ObsFound.Controls(i).Visible = False Then
-            Debug.Print (Me.RoutineFrame.Controls(i).Caption & vbTab & "Req:" & Me.ObsReq.Controls(i).Caption & vbTab & "Found:" & "NOTHING" & vbTab & "FAIL")
             Call setFailure(location:=i, routine:=Me.RoutineFrame.Controls(i).Caption)
             GoTo NextIter
-        'If we have a routine but no Req Qty because the setup type doesn't require it
+        'If we have a routine but no Req Qty because the setup type doesn't require it, not considered a failure
         ElseIf (Me.RoutineFrame.Controls(i).Visible = True And Me.ObsReq.Controls(i).Visible = False) Then
-            Debug.Print (Me.RoutineFrame.Controls(i).Caption & vbTab & "Not Applicable")
             Call hideResult(location:=i)
             GoTo NextIter
         'If its a hidden control
         ElseIf Me.RoutineFrame.Controls(i).Visible = False Then
-            Debug.Print ("Empty Routine")
         Else
-            'TODO: Error handle
-            MsgBox ("Something went wrong here" & vbCrLf & Me.RoutineFrame.Controls(i).Caption)
+            GoTo RoutineReadErr
         End If
         
 NextIter:
     Next i
     
+    Exit Sub
     
+RoutineReadErr:
 
+   Result = MsgBox("Could not correctly compare the quantities of " & Me.RoutineFrame.Controls(i).Caption & _
+                    vbCrLf & "Please alert a QE to this.", vbExclamation)
 
 End Sub
 
 
 Private Sub setFailure(location As Variant, routine As String)
-    'We should be setting a flag here that we detected a failure, however that flag will hve to know beforehand the what KIND of routine is failing
-    'For example if it is a FI routine we should be alerting QC. If it is pretty much anything else, alert the cell leads and the PQCI
+    'Set failure picture
     With Me.ResultFrame.Controls(location)
         .Picture = LoadPicture(DataSources.FAIL_IMG_PATH)
         .Height = 15
@@ -247,6 +281,7 @@ Private Sub setFailure(location As Variant, routine As String)
     
     'Store the failed results for later passing to the email
     Dim index As Integer
+        'Checks if the array has ever been initialized
     If (Not failedRoutines) = -1 Then
         index = 0
         ReDim Preserve failedRoutines(2, 0)
@@ -260,6 +295,7 @@ Private Sub setFailure(location As Variant, routine As String)
     failedRoutines(2, index) = Me.ObsFound(location).Caption
     
 End Sub
+
 Private Sub hideResult(location As Variant)
     Me.ResultFrame.Controls(location).Visible = False
 End Sub

@@ -7,12 +7,21 @@ Attribute VB_GlobalNameSpace = False
 Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = True
-
-
+'*************************************************************************************************
+'
+'   ThisWorkbook
+'       1. RibbonCommands calls the public subs
+'                populateJobHeaders() and populateReport()
+'       2. From there this call the private subs
+'               populateHeaderFeatureInfo(), populateFeatureMeasuredValues(), populateTraceabilityInfo()
+'*************************************************************************************************
 
 Sub populateJobHeaders(jobNum As String, routine As Variant, customer As String, machine As String, partNum As String, rev As String, partDesc As String)
     
     Call Cleanup
+    
+    'If somebody entered nonsense into the Routine ComboBox, then we clear our variables and call this sub
+    'That way the cleanup subroutine happens but then we skip setting empty values
     If IsEmpty(routine) Then Exit Sub
         
         
@@ -29,15 +38,13 @@ Sub populateJobHeaders(jobNum As String, routine As Variant, customer As String,
         
         
         .protect Password:="3063bqa", AllowFormattingCells:=True
-    
-    
     End With
 
 End Sub
 
 Public Sub populateReport(featureInfo() As Variant, featureMeasurements() As Variant, featureTraceability() As Variant)
 
-
+    'If user entered nonsense into the Routine ComboBox, we end up calling this sub but skip setting anything
     If (Not featureInfo) = -1 Or (Not featureMeasurements) = -1 Then Exit Sub
     
     Application.ScreenUpdating = False
@@ -54,11 +61,6 @@ Public Sub populateReport(featureInfo() As Variant, featureMeasurements() As Var
     Call populateFeatureMeasuredValues(featureMeasurements:=featureMeasurements)
     Call populateTraceabilityInfo(featureTraceabilityInfo:=featureTraceability, pages:=applicablePages)
     
-    'TODO: this sub should reference the status of the toggle button to determine whether or not we should call this function
-'    If Not RibbonCommands.toggShowAllObs Then Call RemoveFailedObservations(applicablePages:=applicablePages)
-    
-    
-    
     For i = 1 To applicablePages
         ThisWorkbook.Worksheets("PAGE " & i).protect Password:="3063bqa"
     Next i
@@ -68,6 +70,14 @@ Public Sub populateReport(featureInfo() As Variant, featureMeasurements() As Var
 End Sub
 
 Private Sub populateHeaderFeatureInfo(featureInfo() As Variant)
+
+    'featureInfo(0,i) -> Balloon Number
+    'featureInfo(1,i) -> Feature Description
+    'featureInfo(2,i) -> Lower Tolerance
+    'featureInfo(3,i) -> Target
+    'featureInfo(4,i) -> Upper Tolerance
+    'featureInfo(5,i) -> Gauge ID
+    'featureInfo(6,i) -> Variable / Attribute
     
     For i = 0 To UBound(featureInfo, 2)
             Dim activePageNum As Integer
@@ -93,7 +103,7 @@ Private Sub populateHeaderFeatureInfo(featureInfo() As Variant)
                 End If
                 
                 .Range(colLetter & "19").Value = featureInfo(5, i) 'Gauge
-                .Range(colLetter & "8").Value = featureInfo(6, i) 'Variable / Attribute
+                .Range(colLetter & "8").Value = featureInfo(6, i) 'Variable / Attribute  (hidden cell for later reference)
             End With
     
     Next i
@@ -101,7 +111,12 @@ Private Sub populateHeaderFeatureInfo(featureInfo() As Variant)
 End Sub
 
 Private Sub populateFeatureMeasuredValues(featureMeasurements() As Variant)
+    'featureMeasurements has n x m dimensions where
+        'n is the number of features
+        'm is the number of observations
     
+    'featureMeasurements(n,m) -> [Value]
+
     For i = 0 To UBound(featureMeasurements, 1)
             If i = 0 Then GoTo NextFeature
             Dim activePageNum As Integer
@@ -157,7 +172,6 @@ Private Sub populateTraceabilityInfo(featureTraceabilityInfo() As Variant, pages
     For i = 1 To pages
         With ThisWorkbook.Worksheets("PAGE " & i)
             For j = 0 To UBound(featureTraceabilityInfo, 2)
-                'TODO: something here about setting the text red if the feature is "FAIL"
                 .Range("A" & j + 22).Value = featureTraceabilityInfo(0, j)
                 .Range("C" & j + 22).Value = featureTraceabilityInfo(1, j)
                 
@@ -188,12 +202,12 @@ Private Sub populateTraceabilityInfo(featureTraceabilityInfo() As Variant, pages
 
 End Sub
 
-'This is called somewhere else, fix this logic
-Public Sub Cleanup()
+
+Private Sub Cleanup()
 
     Application.ScreenUpdating = False
     
-    'Reset the Header information
+    'Reset the Header information on Page 1
     With Worksheets("PAGE 1")
         .Unprotect Password:="3063bqa"
 
@@ -211,6 +225,7 @@ Public Sub Cleanup()
 
     End With
 
+    'Reset everything else on all sheets
     For i = 1 To 20
         With ThisWorkbook.Worksheets("PAGE " & i)
             If .Visible = True Then
@@ -224,12 +239,14 @@ Public Sub Cleanup()
                     .Font.Color = RGB(0, 0, 0)
                 End With
                 
+                'Clean measured values
                 With Range("E22:L121")
                     .Value = ""
                     .Interior.Color = RGB(255, 255, 255)
                     .Font.Color = RGB(0, 0, 0)
                 End With
                 
+                'Clean header information
                 With Range("E8:L19")
                     .Value = ""
                     .Interior.Color = RGB(255, 255, 255)
@@ -238,6 +255,7 @@ Public Sub Cleanup()
                 
                 .protect Password:="3063bqa"
                 
+                'Leave only the first page visible
                 If .Name <> "PAGE 1" Then
                     .Visible = False
                 End If
@@ -254,14 +272,20 @@ Public Sub Cleanup()
 
 End Sub
 
+
+
+'****************************************************************************************
+'               Extra Functions
+'****************************************************************************************
+
 Public Sub PrintResults()
 
     Dim endPage As Integer
+    'we set a hidden value at this cell to tell us how many pages needed to print
     endPage = CInt(Worksheets("PAGE 1").Range("L4").Value)
     
     For Each Sheet In Worksheets
-        'Defaults to printing to the ActivePrinter which the user can choose to set in the Settings tab,
-        'but by default this is their default printer
+        'Defaults to printing to the ActivePrinter which the user can choose to set in the Settings tab
         If Sheet.Visible = True Then
             Sheet.Printout From:=1, To:=endPage, Collate:=True
         End If
@@ -272,71 +296,9 @@ End Sub
 
 
 
-
-'TODO: we prob dont need this anymore, instead of conditionally removing some dimensions based on the toggle button
-'we should use a different query to based on the state of the toggle button.
-Private Sub RemoveFailedObservations(applicablePages As Integer)
-    
-    For i = 1 To applicablePages
-        With ThisWorkbook.Worksheets("PAGE " & i)
-            
-            Dim initRow As Integer
-            initRow = 22
-        
-        Dim cell As Range
-ResetLoop:
-            For Each cell In .Range("A" & initRow & ":C121")
-                If Not (cell.Interior.Color = vbWhite) Then
-                    initRow = cell.row
-                    If cell.Offset(1, 0).Value = vbNullString Then
-                    
-                        'If the last row is a fail, set to "" and change the interior to ColorIndex 0, (vbWhite changes the borders on us)
-                        With .Range("A" & initRow & ":" & "C" & initRow)
-                            .Value = ""
-                            .Interior.ColorIndex = 0
-                        End With
-                        With .Range("E" & initRow & ":" & "L" & initRow)
-                            .Value = ""
-                            .Interior.ColorIndex = 0
-                        End With
-                    Else
-                        
-                        'Otherwise we Move up the Cells below
-                        'Traceability Cells
-                        Dim endRow As Integer
-                        endRow = .Range("A" & cell.row).End(xlDown).row
-                        
-                        
-                        .Range("A" & initRow & ":B" & endRow).UnMerge
-                        .Range("A" & initRow + 1 & ":C" & endRow).Copy Destination:=.Range("A" & initRow)
-                        .Range("A" & endRow & ":C" & endRow).Value = ""
-                        .Range("A" & initRow & ":B" & endRow).Merge Across:=True
-                        
-                        
-                        'Measurement Cells
-                        .Range("E" & initRow + 1 & ":L" & endRow).Copy Destination:=.Range("E" & initRow)
-                        .Range("E" & endRow & ":L" & endRow).Value = ""
-                        GoTo ResetLoop
-                    End If
-                    
-                End If
-            
-            Next cell
-        End With
-    Next i
-
-End Sub
-
-
-
 Private Sub Workbook_BeforeClose(Cancel As Boolean)
         On Error GoTo CloseWB
-        
         Call DatabaseModule.Close_Connections
 CloseWB:
-
-End Sub
-
-Private Sub Workbook_Open()
 
 End Sub

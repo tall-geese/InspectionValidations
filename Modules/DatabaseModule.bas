@@ -3,15 +3,22 @@ Attribute VB_Name = "DatabaseModule"
 '*************************************************************************************************
 '
 '   DataBase Module
+'      Public functions should generate their queries and parameters, then call the private subroutines....
+'           1. Init_Connections()
+'           2. ExecQuery()
+'           3. GetConnection()
+'           4. Close_Connections()
+'
+'       Public functions then return the data to the caller in Variant Array form using .GetRows() on the sqlRecordSet
 '
 '*************************************************************************************************
 
 
-Dim E10DataBaseConnection As ADODB.Connection
-Dim ML7DataBaseConnection As ADODB.Connection
-Dim KioskDataBaseConnection As ADODB.Connection
-Dim sqlCommand As ADODB.Command
-Dim sqlRecordSet As ADODB.Recordset
+Private E10DataBaseConnection As ADODB.Connection
+Private ML7DataBaseConnection As ADODB.Connection
+Private KioskDataBaseConnection As ADODB.Connection
+Private sqlCommand As ADODB.Command
+Private sqlRecordSet As ADODB.Recordset
 Dim fso As New FileSystemObject
 Dim query As String
 Dim params() As Variant
@@ -122,7 +129,11 @@ End Sub
 
 
 
-
+'*************************************************************************************************
+'
+'  Public Functions By Database
+'
+'*************************************************************************************************
 
 
 
@@ -245,7 +256,7 @@ Function GetFeatureMeasuredValues(jobNum As String, routine As String, delimFeat
 
 End Function
 
-    'Dont filter out any values
+    'Get all observation values, don't filter
 Function GetAllFeatureMeasuredValues(jobNum As String, routine As String, delimFeatures As String) As Variant()
 
     Set fso = New FileSystemObject
@@ -351,9 +362,9 @@ End Function
 '               InspectionKiosk
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 
+    'Customer name field in Epicor is often wrong, we need to translate it
 Function GetCustomerName(jobNum As String) As String
-    Set fso = New FileSystemObject
-    query = "SELECT CustomerName FROM InspectionKiosk.dbo.CustomerTranslation WHERE Abbreviation=?"
+
     Dim searchParam As String
 
     'If our job is an inventory job like 'NVxxx' then, we can just search by the first two characters
@@ -366,6 +377,8 @@ Function GetCustomerName(jobNum As String) As String
 
 20
 
+    Set fso = New FileSystemObject
+    query = "SELECT CustomerName FROM InspectionKiosk.dbo.CustomerTranslation WHERE Abbreviation=?"
     params = Array("Abbreviation," & searchParam)
 
     Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.Kiosk)
@@ -378,6 +391,7 @@ Function GetCustomerName(jobNum As String) As String
 
 End Function
 
+    'Can't use static emails since positions often change, update the emails in the database accordingly.
 Function GetCellLeadEmail(cell As String) As String
     Set fso = New FileSystemObject
     query = "SELECT Email FROM InspectionKiosk.dbo.VettingEmails WHERE Cell=?"

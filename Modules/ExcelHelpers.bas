@@ -1,4 +1,13 @@
 Attribute VB_Name = "ExcelHelpers"
+'*************************************************************************************************
+'
+'   ExcelHelpers
+'       For Interacting with other Microsoft Office objects outside of ThisWorkbook
+'       1. GetAQL  - from the inspection report workbook.
+'       2. CreateEmail - to the cell lead / QC manager as applicable. Generate table of failed routines and why they failed
+'*************************************************************************************************
+
+
 Public Function GetAQL(customer As String, drawNum As String, prodQty As Integer) As String
     Dim partWb As Workbook
     Dim aqlWb As Workbook
@@ -62,7 +71,7 @@ Public Function GetAQL(customer As String, drawNum As String, prodQty As Integer
         Case 3201 To 99999
             row = "12"
         Case Else
-            'TODO: Error here, the value doesnt make sense
+            GoTo ProdQtyErr
     End Select
     
     With aqlWb.Worksheets("AQL")
@@ -80,11 +89,16 @@ Public Function GetAQL(customer As String, drawNum As String, prodQty As Integer
     
     GoTo 10
     
+ProdQtyErr:
+    Result = MsgBox("There was a problem attempting to interpret this job's production quantity of " & prodQty & vbCrLf & _
+                     "Verify that this qty is correct in Epicor and contact a QE for assistance.", vbExclamation)
+    GoTo 10
+    
 FileDirErr:
     Result = MsgBox("There was a problem opening an Inspection Report for " & vbCrLf & "Customer: " & customer & vbCrLf _
                 & "Drawing: " & vbTab & drawNum & vbCrLf & vbCrLf & "The customer name may be incorrect or the " _
                     & "Inspection Report may be named incorrectly, contact a QE", vbExclamation)
-    Exit Function
+    GoTo 10
                     
 WbReadErr:
     Result = MsgBox("There was a problem when trying to read the AQL Level defined on the ML Frequency Chart Worksheet" & _

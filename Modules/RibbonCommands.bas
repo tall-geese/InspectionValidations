@@ -30,16 +30,17 @@ Dim featureMeasuredValues() As Variant
 Dim featureTraceabilityInfo() As Variant
 
 'Ribbon Controls
+'   we store the Ribbon on startup and use it to "invalidate" the other controls later
+'   which makes them call some of their callback functions
 Dim cusRibbon As IRibbonUI
+
+Dim lblStatus_Text As String
+Dim rtCombo_TextField As String
+Dim rtCombo_Enabled As Boolean
 
 Private toggAutoForm_Pressed As Boolean
 Public toggML7TestDB_Pressed As Boolean
 Public toggShowAllObs_Pressed As Boolean
-
-Dim lblStatus_Text As String
-
-Dim rtCombo_TextField As String
-Dim rtCombo_Enabled As Boolean
 
 Public chkFull_Pressed As Boolean
 Public chkMini_Pressed As Boolean
@@ -58,56 +59,12 @@ Public Sub Ribbon_OnLoad(uiRibbon As IRibbonUI)
     
 End Sub
 
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-'               LoadForm Button
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-
-Public Sub Callback(ByRef control As Office.IRibbonControl)
-    VettingForm.Show
-End Sub
-
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-'              Show All Observations Toggle Buttom
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-
-Public Sub allObs_Toggle(ByRef control As Office.IRibbonControl, ByRef isPressed As Boolean)
-    toggShowAllObs_Pressed = isPressed
-End Sub
-
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-'               Auto Load Form Toggle Button
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-Public Sub toggAutoForm_Toggle(ByRef control As Office.IRibbonControl, ByRef isPressed As Boolean)
-    toggAutoForm_Pressed = isPressed
-End Sub
-Public Sub toggAutoForm_OnGetPressed(ByRef control As Office.IRibbonControl, ByRef ReturnedValue As Variant)
-    ReturnedValue = True
-    toggAutoForm_Pressed = True
-End Sub
-
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-'               ML7 Test Database Toggle Button
-''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-Public Sub testDB_Toggle(ByRef control As Office.IRibbonControl, ByRef isPressed As Boolean)
-    toggML7TestDB_Pressed = isPressed
-    Call DatabaseModule.Close_Connections 'If we had a connection already open, need to invalidate it so we can connect to the TestDB
-End Sub
-
-Public Sub testDB_OnGetEnabled(ByRef control As Office.IRibbonControl, ByRef ReturnedValue As Variant)
-    ReturnedValue = False
-End Sub
-
 
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 '               Job Number EditTextField
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 Public Sub jbEditText_onGetText(ByRef control As IRibbonControl, ByRef Text)
     Text = jobNumUcase
-    
-    'Ask the workbook to Add the Information to Header Fields
-'    Call ThisWorkbook.populateJobHeaders(jobNum:=jobNumUcase, routine:=rtCombo_TextField, customer:=customer, machine:=machine, partNum:=partNum, rev:=rev, partDesc:=partDesc)
-'    Call ThisWorkbook.populateReport(featureInfo:=featureHeaderInfo, featureMeasurements:=featureMeasuredValues, featureTraceability:=featureTraceabilityInfo)
-    
 End Sub
 
 Public Sub jbEditText_OnChange(ByRef control As Office.IRibbonControl, ByRef Text As String)
@@ -203,6 +160,8 @@ ML_NotApplicable:
     
 End Sub
 
+
+
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 '               RoutineName ComboBox
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
@@ -287,6 +246,44 @@ Public Sub rtCombo_OnGetText(ByRef control As Office.IRibbonControl, ByRef Text 
 
 End Sub
 
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+'               LoadForm Button
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+Public Sub Callback(ByRef control As Office.IRibbonControl)
+    VettingForm.Show
+End Sub
+
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+'              Show All Observations Toggle Buttom
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+
+Public Sub allObs_Toggle(ByRef control As Office.IRibbonControl, ByRef isPressed As Boolean)
+    toggShowAllObs_Pressed = isPressed
+End Sub
+
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+'               Auto Load Form Toggle Button
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+Public Sub toggAutoForm_Toggle(ByRef control As Office.IRibbonControl, ByRef isPressed As Boolean)
+    toggAutoForm_Pressed = isPressed
+End Sub
+Public Sub toggAutoForm_OnGetPressed(ByRef control As Office.IRibbonControl, ByRef ReturnedValue As Variant)
+    ReturnedValue = True
+    toggAutoForm_Pressed = True
+End Sub
+
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+'               ML7 Test Database Toggle Button
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+Public Sub testDB_Toggle(ByRef control As Office.IRibbonControl, ByRef isPressed As Boolean)
+    toggML7TestDB_Pressed = isPressed
+    Call DatabaseModule.Close_Connections 'If we had a connection already open, need to invalidate it so we can connect to the TestDB
+End Sub
+
+Public Sub testDB_OnGetEnabled(ByRef control As Office.IRibbonControl, ByRef ReturnedValue As Variant)
+    ReturnedValue = False
+End Sub
 
 
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
