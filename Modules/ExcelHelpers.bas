@@ -90,18 +90,18 @@ Public Function GetAQL(customer As String, drawNum As String, prodQty As Integer
     GoTo 10
     
 ProdQtyErr:
-    Result = MsgBox("There was a problem attempting to interpret this job's production quantity of " & prodQty & vbCrLf & _
+    result = MsgBox("There was a problem attempting to interpret this job's production quantity of " & prodQty & vbCrLf & _
                      "Verify that this qty is correct in Epicor and contact a QE for assistance.", vbExclamation)
     GoTo 10
     
 FileDirErr:
-    Result = MsgBox("There was a problem opening an Inspection Report for " & vbCrLf & "Customer: " & customer & vbCrLf _
+    result = MsgBox("There was a problem opening an Inspection Report for " & vbCrLf & "Customer: " & customer & vbCrLf _
                 & "Drawing: " & vbTab & drawNum & vbCrLf & vbCrLf & "The customer name may be incorrect or the " _
                     & "Inspection Report may be named incorrectly, contact a QE", vbExclamation)
     GoTo 10
                     
 WbReadErr:
-    Result = MsgBox("There was a problem when trying to read the AQL Level defined on the ML Frequency Chart Worksheet" & _
+    result = MsgBox("There was a problem when trying to read the AQL Level defined on the ML Frequency Chart Worksheet" & _
                     vbCrLf & "Please let a QE know to fill this value in", vbExclamation)
 10
     partWb.Close SaveChanges:=False

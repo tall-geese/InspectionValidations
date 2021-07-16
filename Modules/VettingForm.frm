@@ -33,6 +33,10 @@ Dim failedRoutines() As Variant
 
 
 
+Private Sub MultiPage1_Change()
+
+End Sub
+
 '****************************************************************************************
 '               UserForm Callbacks
 '****************************************************************************************
@@ -171,19 +175,19 @@ NextControl:
     Exit Sub
     
 RoutineNameErr:
-   Result = MsgBox("Could Not Parse the Routine Name " & RibbonCommands.partRoutineList(0, i) & _
+   result = MsgBox("Could Not Parse the Routine Name " & RibbonCommands.partRoutineList(0, i) & _
                 vbCrLf & "Alert a QE" & _
                 vbCrLf & "Routines Must Follow the standard naming convention of [Part]_[Rev]_[OPtype]_[Routine SubType]", vbExclamation)
     Exit Sub
 
 UniqueRoutineErr:
-   Result = MsgBox("Application found this routine: " & RibbonCommands.runRoutineList(0, i) & _
+   result = MsgBox("Application found this routine: " & RibbonCommands.runRoutineList(0, i) & _
                 vbCrLf & "Which doesn't match any of our required routines" & _
                 vbCrLf & "If a routine name changed, it could cause misalignment here", vbInformation)
    GoTo NextControl
 
 RoutineSwitchErr:
-       Result = MsgBox("Error when determining observations needed for : " & RibbonCommands.runRoutineList(0, i) & vbCrLf & _
+       result = MsgBox("Error when determining observations needed for : " & RibbonCommands.runRoutineList(0, i) & vbCrLf & _
                 Err.description, vbCritical)
 
 End Sub
@@ -213,6 +217,24 @@ Private Sub ChangePrinterButton_Click()
     If (Application.Dialogs(xlDialogPrinterSetup).Show) Then
         Call SetActivePrinter
     End If
+End Sub
+
+Private Sub ForcePrintButton_Click()
+    Dim result As String
+    result = Me.PasswordTextBox.Text
+    
+    If result = DataSources.ENABLE_PRINTING_PASS Then
+        Me.PrintButton.Enabled = True
+        Me.ForcePrintButton.Enabled = False
+        MsgBox ("Printing Enabled")
+    Else
+        result = MsgBox("Incorrect Password", vbCritical)
+        
+    End If
+    
+    Me.PasswordTextBox.Text = vbNullString
+
+
 End Sub
 
 
@@ -256,7 +278,7 @@ NextIter:
     
 RoutineReadErr:
 
-   Result = MsgBox("Could not correctly compare the quantities of " & Me.RoutineFrame.Controls(i).Caption & _
+   result = MsgBox("Could not correctly compare the quantities of " & Me.RoutineFrame.Controls(i).Caption & _
                     vbCrLf & "Please alert a QE to this.", vbExclamation)
 
 End Sub

@@ -385,7 +385,7 @@ Private Sub SetVariabes()
     Exit Sub
     
 Err1:
-    Result = MsgBox("Could not set Job/Run information. Issue found at: " & vbCrLf & Err.description, vbCritical)
+    result = MsgBox("Could not set Job/Run information. Issue found at: " & vbCrLf & Err.description, vbCritical)
     Err.Raise Number:=vbObjectError + 1000
 
 End Sub
@@ -434,7 +434,7 @@ Private Sub SetWorkbookInformation()
                                         featureTraceability:=featureTraceabilityInfo)
     Exit Sub
 wbErr:
-    Result = MsgBox("Could not set information to the workbook" & vbCrLf & "issue found at " & vbCrLf & Err.description, vbCritical)
+    result = MsgBox("Could not set information to the workbook" & vbCrLf & "issue found at " & vbCrLf & Err.description, vbCritical)
     Err.Raise Number:=vbObjectError + 1200
     
 End Sub
