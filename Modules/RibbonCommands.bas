@@ -9,27 +9,53 @@ Attribute VB_Name = "RibbonCommands"
 '       3. we should ask the DataBase Module to perform our check on whether a jobNumber actually exists and is valid
 '*************************************************************************************************
 
-'Epicor Job Info
+'Epicor Universal Job Info
 Public jobNumUcase As String
 Public customer As String
 Public partNum As String
 Public rev As String
-Public machine As String
-Public cell As String
 Public partDesc As String
 Public drawNum As String
+
+'Epicor Operation-Specific JobInfo
 Public prodQty As Integer
+Public setupType As String
+Public machine As String
+Public cell As String
 
 'Routines for the part / Routines that we've run
 Public partRoutineList() As Variant
+    '(0,i) -> RoutineName
 Public runRoutineList() As Variant
+    '(0,i) -> RoutineName
+    '(1,i) -> RunStatus
+    '(2,i) -> ObsFound
+    '(3,i) -> prodQty  <-- is there anyway we can grab a different prod qty for Final Dim? How can we truly know the AQL?
+    '(4,i) -> setupType
+    '(5,i) -> machine
+    '(6,i) -> cell
 
 'Features and Measurement Information, applicable to the currently selected Routine
 Dim featureHeaderInfo() As Variant
+    '(0,i) -> Balloon#
+    '(1,i) -> Description
+    '(2,i) -> LTol
+    '(3,i) -> Target
+    '(4,i) -> UTol
+    '(5,i) -> Insp Method
+    '(6,i) -> Attribute / Variable
 Dim featureMeasuredValues() As Variant
+    '(n,m) dimensional array where..
+        'n -> number of features
+        'm -> number of observations
 Dim featureTraceabilityInfo() As Variant
+    '(0,i) -> ObsTimestamp
+    '(1,i) -> EmpID
+    '(2,i) -> Obs#
+    '(3,i) -> Pass / Fail
 
-'Ribbon Controls
+
+'***********Ribbon Controls**************
 '   we store the Ribbon on startup and use it to "invalidate" the other controls later
 '   which makes them call some of their callback functions
 Dim cusRibbon As IRibbonUI
@@ -69,65 +95,76 @@ End Sub
 
 Public Sub jbEditText_OnChange(ByRef control As Office.IRibbonControl, ByRef Text As String)
     'Reset the Variables
-    Call ClearVariables
+    Call ClearFeatureVariables
     
     jobNumUcase = UCase(Text)
     If Text = vbNullString Then GoTo 10
     
-    Dim setupType As String
-    If DatabaseModule.GetJobInformation(JobID:=Text, partNum:=partNum, rev:=rev, setupType:=setupType, machine:=machine, cell:=cell, _
-                                        partDescription:=partDesc, prodQty:=prodQty, drawNum:=drawNum) Then
+    On Error GoTo 10
+    Call SetJobVariables(jobNum:=jobNumUcase)
     
-        On Error GoTo ML_QueryErr:
-        customer = DatabaseModule.GetCustomerName(jobNum:=jobNumUcase)
-        tempRoutineArray = DatabaseModule.GetRunRoutineList(jobNumUcase)
-        partRoutineList = DatabaseModule.GetPartRoutineList(partNum, rev)
-        
-        'Pass the results of the temp to the runRoutine List, we're going to add another dimension where we
-            'Keep track of the #ObsFound for each routine and use this later in the UserForm
-        ReDim Preserve runRoutineList(2, UBound(tempRoutineArray, 2))
-        For i = 0 To UBound(tempRoutineArray, 2)
-            runRoutineList(0, i) = tempRoutineArray(0, i)
-            runRoutineList(1, i) = tempRoutineArray(1, i)
-        Next i
-        
-        
-        'Set our Ribbon Information to the first Routine in our list, invalidate this control later
-        rtCombo_TextField = runRoutineList(0, 0)
-        lblStatus_Text = runRoutineList(1, 0)
-        rtCombo_Enabled = True
+    'TODO: Determine the number of Swiss/CNC operations normally required by the part, set a flag if is a multimachining op Part
+    'Determine if any of our machining operations are missing as a result of outside operations, set a flag once again
+        'Find out, based on the previous data - which of our operations are missing exactly
+        'If we know a level is missing, then we should pass that data later on in thi function when collecting operation-Level
+            'Information like machine, cell. They will need to either fill NA or use another level's information
+    
+    
+    On Error GoTo ML_QueryErr:
+    customer = DatabaseModule.GetCustomerName(jobNum:=jobNumUcase)
+    tempRoutineArray = DatabaseModule.GetRunRoutineList(jobNumUcase)
+    partRoutineList = DatabaseModule.GetPartRoutineList(partNum, rev)
+    
+    'Pass the results of the temp to the runRoutine List, we're going to add another dimension where we
+        'Keep track of the #ObsFound for each routine and use this later in the UserForm
+    ReDim Preserve runRoutineList(2, UBound(tempRoutineArray, 2))
+    For i = 0 To UBound(tempRoutineArray, 2)
+        runRoutineList(0, i) = tempRoutineArray(0, i)
+        runRoutineList(1, i) = tempRoutineArray(1, i)
+    Next i
+    
+    
+    'Set our Ribbon Information to the first Routine in our list, invalidate this control later
+    rtCombo_TextField = runRoutineList(0, 0)
+    lblStatus_Text = runRoutineList(1, 0)
+    rtCombo_Enabled = True
 
-        Select Case setupType
-            Case "Full"
-                chkFull_Pressed = True
-            Case "Mini"
-                chkMini_Pressed = True
-            Case "None"
-                chkNone_Pressed = True
-            Case Else
-                GoTo SetupTypeUndefined
-        End Select
-        
-        Call SetVariabes
-        On Error GoTo ML_RoutineInfo
-        
-        'For each routine created for this run, find how many PASSed observations there are
-        'We need to filter out the failed ones because this value will be used by VettingForm in ObsFound
-        For i = 0 To UBound(runRoutineList, 2)
-            Dim routine As String
-            routine = runRoutineList(0, i)
-            Dim features() As Variant
-            features = DatabaseModule.GetFeatureHeaderInfo(jobNum:=jobNumUcase, routine:=routine)
+    Select Case setupType
+        Case "Full"
+            chkFull_Pressed = True
+        Case "Mini"
+            chkMini_Pressed = True
+        Case "None"
+            chkNone_Pressed = True
+        Case Else
+            GoTo SetupTypeUndefined
+    End Select
+    
+    Call SetFeatureVariables
+    On Error GoTo ML_RoutineInfo
+    
+    'For each routine created for this run, find how many PASSed observations there are
+    'We need to filter out the failed ones because this value will be used by VettingForm in ObsFound
+    For i = 0 To UBound(runRoutineList, 2)
+        Dim routine As String
+        routine = runRoutineList(0, i)
+        Dim features() As Variant
+        features = DatabaseModule.GetFeatureHeaderInfo(jobNum:=jobNumUcase, routine:=routine)
 
-            runRoutineList(2, i) = UBound(DatabaseModule.GetFeatureMeasuredValues(jobNum:=jobNumUcase, routine:=routine, _
-                                            delimFeatures:=JoinPivotFeatures(features), featureInfo:=features), 2) + 1
-        Next i
+        'Add the number of found Observations
+        runRoutineList(2, i) = UBound(DatabaseModule.GetFeatureMeasuredValues(jobNum:=jobNumUcase, routine:=routine, _
+                                        delimFeatures:=JoinPivotFeatures(features), featureInfo:=features), 2) + 1
+        'TODO: Add run mahciningLevel, cell, machine, setup Type, Completed Qty
+        'We should be using the 'FA', 'FI', code in the routine name to determine What opCode we should be searching in
+        'Let another functin handle this and come up with the determined level
+        'Use SD1168 to validate this, FVIS has about 400 parts Less
+    Next i
         
 
-    Else
-        MsgBox ("Not A Valid Job Number")
-        jobNumUcase = ""
-    End If
+'    Else
+'        MsgBox ("Not A Valid Job Number")
+'        jobNumUcase = ""
+'    End If
     
     On Error GoTo 10
     Call SetWorkbookInformation
@@ -185,7 +222,7 @@ Public Sub rtCombo_OnChange(ByRef control As Office.IRibbonControl, ByRef Text A
     
     'Erase the feature data but, not our Job Number or Job Routine List,
     'This means the user can still select from the drop-down and try again
-    Call ClearVariables(preserveRoutines:=True)
+    Call ClearFeatureVariables(preserveRoutines:=True)
     
     On Error GoTo 10
     If validChange = True Then
@@ -195,7 +232,7 @@ Public Sub rtCombo_OnChange(ByRef control As Office.IRibbonControl, ByRef Text A
         
 
         'Get new feature data with new active routine
-        Call SetVariabes
+        Call SetFeatureVariables
     End If
     
     'If there was new data we populate, if not then we end up clearing everything
@@ -337,7 +374,7 @@ Public Sub IterPrintRoutines()
         lblStatus_Text = runRoutineList(1, i)
         
         On Error GoTo 10
-        Call SetVariabes
+        Call SetFeatureVariables
         Call SetWorkbookInformation
         Call ThisWorkbook.PrintResults
     Next i
@@ -364,7 +401,7 @@ Function JoinPivotFeatures(featureHeaderInfo() As Variant) As String
 
 End Function
 
-Private Sub SetVariabes()
+Private Sub SetFeatureVariables()
 
     On Error GoTo Err1
 
@@ -390,7 +427,7 @@ Err1:
 
 End Sub
 
-Private Sub ClearVariables(Optional preserveRoutines As Boolean)
+Private Sub ClearFeatureVariables(Optional preserveRoutines As Boolean)
     
 'Always
         'When the we try to set feature info w/o any info the wb runs cleanup and then stops
@@ -422,6 +459,65 @@ Private Sub ClearVariables(Optional preserveRoutines As Boolean)
     'Keep routines for ComboBox
     Erase partRoutineList
     Erase runRoutineList
+
+
+End Sub
+
+Private Sub SetJobVariables(jobNum As String)
+    On Error GoTo jbInfoErr
+    Dim jobInfo() As Variant
+    
+    'TODO: somwhere here we need to check the size of the array (number of SWiss and/or CNC ops)
+    'and possible need to check the operation numbers and maybe even op codes (need to add all this into the SQL query)
+    
+    jobInfo = DatabaseModule.GetJobInformation(JobID:=jobNum)
+    
+    
+    'Add the components of the array to our variables
+    
+    partNum = jobInfo(2, 0)
+    rev = jobInfo(3, 0)
+    setupType = jobInfo(4, 0)
+'    custName = jobInfo(5, 0) 'This shouldnt be set here, we have to let another function set the customer name
+    machine = jobInfo(6, 0)
+    cell = jobInfo(7, 0)
+    partDescription = jobInfo(8, 0)
+    prodQty = jobInfo(9, 0)
+    drawNum = jobInfo(10, 0)
+    
+    Exit Sub
+    
+    '    If Not sqlRecordSet.EOF Then
+'        'Set values to pass to the Header Fields
+'        If Not IsMissing(partNum) Then partNum = sqlRecordSet.Fields(2).Value
+'        If Not IsMissing(rev) Then rev = sqlRecordSet.Fields(3).Value
+'        If Not IsMissing(setupType) Then setupType = sqlRecordSet.Fields(4).Value
+'
+'        'This one is usually only called/set by the GetCustomerName()
+'        If Not IsMissing(custName) Then custName = sqlRecordSet.Fields(5).Value
+'
+'        If Not IsMissing(machine) Then machine = sqlRecordSet.Fields(6).Value
+'        If Not IsMissing(cell) Then cell = sqlRecordSet.Fields(7).Value
+'        If Not IsMissing(partDescription) Then partDescription = sqlRecordSet.Fields(8).Value
+'        If Not IsMissing(prodQty) Then prodQty = sqlRecordSet.Fields(9).Value
+'        If Not IsMissing(drawNum) Then drawNum = sqlRecordSet.Fields(10).Value
+'        GetJobInformation = True
+'        Exit Function
+'    End If
+    
+
+jbInfoErr:
+    'If the recordSet is empty
+    If Err.Number = vbObjectError + 2000 Then
+        MsgBox ("Not A Valid Job Number")
+    Else
+    'Otherwise we encountered a different problem
+        result = MsgBox(Err.description, vbExclamation)
+    End If
+    
+    'Either way, reset the job number and invalidate the controls
+    jobNumUcase = ""
+    Err.Raise Number:=Err.Number, description:="SetJobVariables" & vbCrLf & Err.description
 
 
 End Sub

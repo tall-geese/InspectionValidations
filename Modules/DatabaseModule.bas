@@ -151,11 +151,12 @@ End Sub
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 '               Epicor
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-Function GetJobInformation(JobID As String, Optional ByRef partNum As Variant, Optional ByRef rev As Variant, _
-                                Optional ByRef setupType As Variant, Optional ByRef custName As Variant, _
-                                Optional ByRef machine As Variant, Optional ByRef cell As Variant, _
-                                Optional ByRef partDescription As Variant, Optional prodQty As Variant, _
-                                Optional ByRef drawNum As Variant) As Boolean
+'Function GetJobInformation(JobID As String, Optional ByRef partNum As Variant, Optional ByRef rev As Variant, _
+'                                Optional ByRef setupType As Variant, Optional ByRef custName As Variant, _
+'                                Optional ByRef machine As Variant, Optional ByRef cell As Variant, _
+'                                Optional ByRef partDescription As Variant, Optional prodQty As Variant, _
+'                                Optional ByRef drawNum As Variant) As Boolean
+Function GetJobInformation(JobID As String) As Variant()
     
     Set fso = New FileSystemObject
     params = Array("jh.JobNum," & JobID)
@@ -165,33 +166,36 @@ Function GetJobInformation(JobID As String, Optional ByRef partNum As Variant, O
     On Error GoTo JobInfoErr:
     Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.E10)
     
-    
-    If Not sqlRecordSet.EOF Then
-        'Set values to pass to the Header Fields
-        If Not IsMissing(partNum) Then partNum = sqlRecordSet.Fields(2).Value
-        If Not IsMissing(rev) Then rev = sqlRecordSet.Fields(3).Value
-        If Not IsMissing(setupType) Then setupType = sqlRecordSet.Fields(4).Value
-        
-        'This one is usually only called/set by the GetCustomerName()
-        If Not IsMissing(custName) Then custName = sqlRecordSet.Fields(5).Value
-        
-        If Not IsMissing(machine) Then machine = sqlRecordSet.Fields(6).Value
-        If Not IsMissing(cell) Then cell = sqlRecordSet.Fields(7).Value
-        If Not IsMissing(partDescription) Then partDescription = sqlRecordSet.Fields(8).Value
-        If Not IsMissing(prodQty) Then prodQty = sqlRecordSet.Fields(9).Value
-        If Not IsMissing(drawNum) Then drawNum = sqlRecordSet.Fields(10).Value
-        GetJobInformation = True
-        Exit Function
-    End If
-10
-    'If now rows are returned, the job doesn't exist
-    GetJobInformation = False
+    GetJobInformation = sqlRecordSet.GetRows()
     Exit Function
+    
+    
+'    If Not sqlRecordSet.EOF Then
+'        'Set values to pass to the Header Fields
+'        If Not IsMissing(partNum) Then partNum = sqlRecordSet.Fields(2).Value
+'        If Not IsMissing(rev) Then rev = sqlRecordSet.Fields(3).Value
+'        If Not IsMissing(setupType) Then setupType = sqlRecordSet.Fields(4).Value
+'
+'        'This one is usually only called/set by the GetCustomerName()
+'        If Not IsMissing(custName) Then custName = sqlRecordSet.Fields(5).Value
+'
+'        If Not IsMissing(machine) Then machine = sqlRecordSet.Fields(6).Value
+'        If Not IsMissing(cell) Then cell = sqlRecordSet.Fields(7).Value
+'        If Not IsMissing(partDescription) Then partDescription = sqlRecordSet.Fields(8).Value
+'        If Not IsMissing(prodQty) Then prodQty = sqlRecordSet.Fields(9).Value
+'        If Not IsMissing(drawNum) Then drawNum = sqlRecordSet.Fields(10).Value
+'        GetJobInformation = True
+'        Exit Function
+'    End If
+'10
+'    'If now rows are returned, the job doesn't exist
+'    GetJobInformation = False
+'    Exit Function
     
 JobInfoErr:
     'if errored because recordset.EOF, then pass back to RibbonCommands and let it handle this
     If Err.Number = vbObjectError + 2000 Then
-        Resume Next
+        Err.Raise Number:=vbObjectError + 2000, description:="Job Does Not Exist" & vbCrLf & Err.description
     Else
         Err.Raise Number:=Err.Number, description:="Func: E10-GetJobInformation" & vbCrLf & Err.description
     End If
@@ -399,6 +403,7 @@ End Function
 Function GetCustomerName(jobNum As String) As String
 
     Dim searchParam As String
+    Dim jobInfo() As Variant
 
     'If our job is an inventory job like 'NVxxx' then, we can just search by the first two characters
     If Len(jobNum) > 2 And Not IsNumeric(Left(jobNum, 1)) And Not IsNumeric(Mid(jobNum, 2, 1)) Then
@@ -406,8 +411,8 @@ Function GetCustomerName(jobNum As String) As String
         GoTo 20
     End If
 
-    GetJobInformation JobID:=jobNum, custName:=searchParam
-
+    jobInfo = GetJobInformation(JobID:=jobNum)
+    searchParam = jobInfo(0, 5)
 20
     On Error GoTo CustomerNameErr
     Set fso = New FileSystemObject
