@@ -18,10 +18,21 @@ Public partDesc As String
 Public drawNum As String
 
 'Epicor Operation-Specific JobInfo
-Public prodQty As Integer
-Public setupType As String
-Public machine As String
-Public cell As String
+Public multiMachinePart As Boolean
+Public machineStageMissing As Boolean
+Public missingLevels() As Integer
+Public partOperations() As Variant
+    '(0,i) -> JobNum
+    '(1,i) -> OprSeq
+    '(2,i) -> OpCode
+Public jobOperations() As Variant
+    '(0,i) -> JobNum
+    '(1,i) -> setupType
+    '(2,i) -> Machine
+    '(3,i) -> Cell
+    '(4,i) -> ProdQty
+    '(5,i) -> OprSeq
+    '(6,i) -> OpCode
 
 'Routines for the part / Routines that we've run
 Public partRoutineList() As Variant
@@ -109,6 +120,54 @@ Public Sub jbEditText_OnChange(ByRef control As Office.IRibbonControl, ByRef Tex
         'If we know a level is missing, then we should pass that data later on in thi function when collecting operation-Level
             'Information like machine, cell. They will need to either fill NA or use another level's information
     
+    partOperations = DatabaseModule.GetPartOperationInfo(jobNumUcase)
+    If UBound(partOperations, 2) > 0 Then multiMachinePart = True
+    
+    jobOperations = DatabaseModule.GetJobOperationInfo(jobNumUcase)
+    'If there were not job machining ops or less machining ops then we expected
+    If ((Not jobOperations) = -1) Or (UBound(jobOperations, 2) < UBound(partOperations, 2)) Then machineStageMissing = True
+    
+    'If ops are missing, we need to determine which ones so we can ignore those respective routines later.
+    If machineStageMissing = True Then
+        If (Not Not jobOperations) And (Not Not partOperations) Then 'we have a list of part operations and job operations
+            For i = 0 To UBound(partOperations, 2)
+                For j = 0 To UBound(jobOperations, 2)
+                    If (partOperations(1, i) = jobOperations(5, j)) And (partOperations(2, i) = jobOperations(6, j)) Then
+                        'If the Op# and Op Codes Match, then we dont need to do anything here
+                        GoTo Nexti
+                    End If
+                Next j
+                'Otherwise we couldnt find our part operation in the list of job operations
+                If (Not missingLevels) = -1 Then
+                    ReDim Preserve missingLevels(0)
+                    missingLevels(0) = i
+                Else
+                    ReDim Preserve missingLevels(UBound(missingLevels) + 1)
+                    missingLevels(UBound(missingLevels)) = i
+                End If
+Nexti:
+            Next i
+            
+        ElseIf (Not Not jobOperations) And ((Not partOperations) = -1) Then 'This doesnt make sense, we have more machining ops then expected
+            result = MsgBox("There are more machining operations for this job than expected. Cannot process", vbCritical)
+            GoTo 10
+        ElseIf ((Not jobOperations) = -1) And (Not Not partOperations) Then 'We have no machining operations, set the missing machining ops
+            For i = 0 To UBound(partOperations, 2)
+                If (Not missingLevels) = -1 Then
+                    ReDim Preserve missingLevels(0)
+                    missingLevels(0) = i
+                Else
+                    ReDim Preserve missingLevels(UBound(missingLevels) + 1)
+                    missingLevels(UBound(missingLevels)) = i
+                End If
+            Next i
+        ElseIf ((Not jobOperations) = -1) And ((Not partOperations) = -1) Then  'neither have been initialized, no one should call for
+                                                                            'manufacturing routines anyway, skip ahead
+            'theoretically we could just leav this alone
+            'maybe we should set machineStageMissing back to False, since really nothing is missing now
+        End If
+    End If
+    
     
     On Error GoTo ML_QueryErr:
     customer = DatabaseModule.GetCustomerName(jobNum:=jobNumUcase)
@@ -117,32 +176,12 @@ Public Sub jbEditText_OnChange(ByRef control As Office.IRibbonControl, ByRef Tex
     
     'Pass the results of the temp to the runRoutine List, we're going to add another dimension where we
         'Keep track of the #ObsFound for each routine and use this later in the UserForm
-    ReDim Preserve runRoutineList(2, UBound(tempRoutineArray, 2))
+    ReDim Preserve runRoutineList(6, UBound(tempRoutineArray, 2))
     For i = 0 To UBound(tempRoutineArray, 2)
         runRoutineList(0, i) = tempRoutineArray(0, i)
         runRoutineList(1, i) = tempRoutineArray(1, i)
     Next i
-    
-    
-    'Set our Ribbon Information to the first Routine in our list, invalidate this control later
-    rtCombo_TextField = runRoutineList(0, 0)
-    lblStatus_Text = runRoutineList(1, 0)
-    rtCombo_Enabled = True
-
-    Select Case setupType
-        Case "Full"
-            chkFull_Pressed = True
-        Case "Mini"
-            chkMini_Pressed = True
-        Case "None"
-            chkNone_Pressed = True
-        Case Else
-            GoTo SetupTypeUndefined
-    End Select
-    
-    Call SetFeatureVariables
-    On Error GoTo ML_RoutineInfo
-    
+        
     'For each routine created for this run, find how many PASSed observations there are
     'We need to filter out the failed ones because this value will be used by VettingForm in ObsFound
     For i = 0 To UBound(runRoutineList, 2)
@@ -159,6 +198,68 @@ Public Sub jbEditText_OnChange(ByRef control As Office.IRibbonControl, ByRef Tex
         'Let another functin handle this and come up with the determined level
         'Use SD1168 to validate this, FVIS has about 400 parts Less
     Next i
+    
+    'TODO: set up an Epicor Read Error
+    For i = 0 To UBound(runRoutineList, 2)
+        If multiMachinePart Then
+            Dim level As Integer
+            level = GetMachiningLevel(routineName:=runRoutineList(0, i))
+            runRoutineList(3, i) = jobOperations(4, level) 'ProdQty
+            runRoutineList(4, i) = jobOperations(1, level) 'setupType
+            runRoutineList(5, i) = jobOperations(2, level) 'machine
+            runRoutineList(6, i) = jobOperations(3, level) 'cell
+            
+            'WAIT we woulndt ever be missing that level if a run was created
+'            If machineStageMissing And IsNumeric(Application.Match(level, missingLevels, 0)) Then 'If we're missing a machining op of that level
+'
+'            Else
+'
+'            End If
+            
+            
+        ElseIf (Not jobOperations) = -1 Then
+            'The part has machining operations but we did them all outside
+            'So in this situation, we don't have a great place to pull the acceptable quantity to base the AQL off of,
+            'BUT we can try using the MAX() or greatest of the sum of the operations
+            runRoutineList(3, i) = DatabaseModule.GetGreatestOpQty(jobNumUcase).GetRows()(1, 0)
+            runRoutineList(4, i) = "None" 'setupType
+            runRoutineList(5, i) = "NA" 'machine
+            runRoutineList(6, i) = "NA" 'cell
+            
+        Else
+            'The part only has a single machining operation
+            runRoutineList(3, i) = jobOperations(4, 0) 'ProdQty
+            runRoutineList(4, i) = jobOperations(1, 0) 'setupType
+            runRoutineList(5, i) = jobOperations(2, 0) 'machine
+            runRoutineList(6, i) = jobOperations(3, 0) 'cell
+        End If
+    Next i
+    
+    
+    
+    
+    
+    'Set our Ribbon Information to the first Routine in our list, invalidate this control later
+    rtCombo_TextField = runRoutineList(0, 0)
+    lblStatus_Text = runRoutineList(1, 0)
+    rtCombo_Enabled = True
+
+    'TODO: we dont have this variable anymore, need to switch on runRoutineList(4,0)
+    Select Case setupType
+        Case "Full"
+            chkFull_Pressed = True
+        Case "Mini"
+            chkMini_Pressed = True
+        Case "None"
+            chkNone_Pressed = True
+        Case Else
+            GoTo SetupTypeUndefined
+    End Select
+    
+    Call SetFeatureVariables
+    On Error GoTo ML_RoutineInfo
+    
+
         
 
 '    Else
@@ -401,6 +502,16 @@ Function JoinPivotFeatures(featureHeaderInfo() As Variant) As String
 
 End Function
 
+Function GetMachiningLevel(routineName As String) As String
+    'TODO: parse the routineName in combination with our amount of partMachiningOperations to determine the machine level a routine belongs to
+    'By machine level I mean: does the routine belong to op 10 Swiss? op 50 Mill? Which one is it tied to?
+
+    'For operations like FDIM and FVIS, we should be using the highest level avaible that isnt missing
+        '(this is for the prodQty that their AQL will be based off of, trying to get as close as possible to the amount of parts they had
+        '   when doing the final dimensional, and its possible that some good parts were scrapped or lost between ops)
+
+End Function
+
 Private Sub SetFeatureVariables()
 
     On Error GoTo Err1
@@ -477,13 +588,13 @@ Private Sub SetJobVariables(jobNum As String)
     
     partNum = jobInfo(2, 0)
     rev = jobInfo(3, 0)
-    setupType = jobInfo(4, 0)
+   ' setupType = jobInfo(4, 0)
 '    custName = jobInfo(5, 0) 'This shouldnt be set here, we have to let another function set the customer name
-    machine = jobInfo(6, 0)
-    cell = jobInfo(7, 0)
-    partDescription = jobInfo(8, 0)
-    prodQty = jobInfo(9, 0)
-    drawNum = jobInfo(10, 0)
+ '   machine = jobInfo(6, 0)
+'    cell = jobInfo(7, 0)
+    partDescription = jobInfo(5, 0)
+ '  prodQty = jobInfo(9, 0)
+    drawNum = jobInfo(6, 0)
     
     Exit Sub
     

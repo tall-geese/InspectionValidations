@@ -170,28 +170,6 @@ Function GetJobInformation(JobID As String) As Variant()
     Exit Function
     
     
-'    If Not sqlRecordSet.EOF Then
-'        'Set values to pass to the Header Fields
-'        If Not IsMissing(partNum) Then partNum = sqlRecordSet.Fields(2).Value
-'        If Not IsMissing(rev) Then rev = sqlRecordSet.Fields(3).Value
-'        If Not IsMissing(setupType) Then setupType = sqlRecordSet.Fields(4).Value
-'
-'        'This one is usually only called/set by the GetCustomerName()
-'        If Not IsMissing(custName) Then custName = sqlRecordSet.Fields(5).Value
-'
-'        If Not IsMissing(machine) Then machine = sqlRecordSet.Fields(6).Value
-'        If Not IsMissing(cell) Then cell = sqlRecordSet.Fields(7).Value
-'        If Not IsMissing(partDescription) Then partDescription = sqlRecordSet.Fields(8).Value
-'        If Not IsMissing(prodQty) Then prodQty = sqlRecordSet.Fields(9).Value
-'        If Not IsMissing(drawNum) Then drawNum = sqlRecordSet.Fields(10).Value
-'        GetJobInformation = True
-'        Exit Function
-'    End If
-'10
-'    'If now rows are returned, the job doesn't exist
-'    GetJobInformation = False
-'    Exit Function
-    
 JobInfoErr:
     'if errored because recordset.EOF, then pass back to RibbonCommands and let it handle this
     If Err.Number = vbObjectError + 2000 Then
@@ -217,6 +195,56 @@ ShiftERR:
     Err.Raise Number:=Err.Number, description:="Func: E10-Get1XSHIFTInsps" & vbCrLf & Err.description
 End Function
 
+Function GetPartOperationInfo(JobID As String) As Variant()
+    On Error GoTo PartOpErr
+    Set fso = New FileSystemObject
+    params = Array("jh.JobNum," & JobID)
+    query = fso.OpenTextFile(DataSources.QUERIES_PATH & "EpicorPartOpInfo.sql").ReadAll
+
+    Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.E10)
+    
+    'TODO: Its possible that we have a part without any machining operations. If we made it past the valid job step and
+    'encountered an EOF here which likely means no machining ops. Handle the err by returning an unitialized array, check for that at RibbonCommands
+    
+    GetPartOperationInfo = sqlRecordSet.GetRows()
+    Exit Function
+    
+PartOpErr:
+    Err.Raise Number:=Err.Number, description:="Func: E10-GetPartOpInfo" & vbCrLf & Err.description
+End Function
+
+Function GetJobOperationInfo(JobID As String) As Variant()
+    On Error GoTo JobOpErr
+    Set fso = New FileSystemObject
+    params = Array("ld.JobNum," & JobID, "jh.JobNum," & JobID)
+    query = fso.OpenTextFile(DataSources.QUERIES_PATH & "EpicorOperationInfo.sql").ReadAll
+
+    Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.E10)
+    
+    'TODO: Its possible that we have a part without any machining operations. If we made it past the valid job step and
+    'encountered an EOF here which likely means no machining ops. Handle the err by returning an unitialized array, check for that at RibbonCommands
+    
+    GetJobOperationInfo = sqlRecordSet.GetRows()
+    Exit Function
+    
+JobOpErr:
+    Err.Raise Number:=Err.Number, description:="Func: E10-GetJobOpInfo" & vbCrLf & Err.description
+End Function
+
+Function GetGreatestOpQty(JobID As String) As Variant()
+    On Error GoTo GreatOpQtyErr:
+    Set fso = New FileSystemObject
+    params = Array("ld.JobNum," & JobID)
+    query = fso.OpenTextFile(DataSources.QUERIES_PATH & "EpicorGreatestOpQty.sql").ReadAll
+
+    Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.E10)
+    
+    GetGreatestOpQty = sqlRecordSet.GetRows()
+    Exit Function
+    
+GreatOpQtyErr:
+    Err.Raise Number:=Err.Number, description:="Func: E10-GetGreatestOpQty" & vbCrLf & Err.description
+End Function
 
 
 
@@ -412,7 +440,7 @@ Function GetCustomerName(jobNum As String) As String
     End If
 
     jobInfo = GetJobInformation(JobID:=jobNum)
-    searchParam = jobInfo(0, 5)
+    searchParam = jobInfo(0, 4)
 20
     On Error GoTo CustomerNameErr
     Set fso = New FileSystemObject
