@@ -20,7 +20,7 @@ Public drawNum As String
 'Epicor Operation-Specific JobInfo
 Public multiMachinePart As Boolean
 Public machineStageMissing As Boolean
-Public missingLevels() As Integer
+Public missingLevels() As Integer     'For use in ThisWorkbook
 Public partOperations() As Variant
     '(0,i) -> JobNum
     '(1,i) -> OprSeq
@@ -201,33 +201,35 @@ Nexti:
     
     'TODO: set up an Epicor Read Error
     For i = 0 To UBound(runRoutineList, 2)
-        If multiMachinePart Then
+    
+        If multiMachinePart And (Not Not jobOperations) Then
+            'Is this the first machining op, the second?, etc
             Dim level As Integer
             level = GetMachiningLevel(routineName:=runRoutineList(0, i))
-            runRoutineList(3, i) = jobOperations(4, level) 'ProdQty
-            runRoutineList(4, i) = jobOperations(1, level) 'setupType
-            runRoutineList(5, i) = jobOperations(2, level) 'machine
-            runRoutineList(6, i) = jobOperations(3, level) 'cell
-            
-            'WAIT we woulndt ever be missing that level if a run was created
-'            If machineStageMissing And IsNumeric(Application.Match(level, missingLevels, 0)) Then 'If we're missing a machining op of that level
-'
-'            Else
-'
-'            End If
-            
+            'Theoretically shouldnt have to check if a op of that level exists, since somebody bothered to create the routine for it
+            For j = 0 To UBound(jobOperations, 2)
+                If (partOperations(1, level) = jobOperations(5, j)) And (partOperations(2, level) = jobOperations(6, j)) Then
+                    runRoutineList(3, i) = jobOperations(4, j) 'ProdQty
+                    runRoutineList(4, i) = jobOperations(1, j) 'setupType
+                    runRoutineList(5, i) = jobOperations(2, j) 'machine
+                    runRoutineList(6, i) = jobOperations(3, j) 'cell
+                End If
+            Next j
             
         ElseIf (Not jobOperations) = -1 Then
             'The part has machining operations but we did them all outside
             'So in this situation, we don't have a great place to pull the acceptable quantity to base the AQL off of,
             'BUT we can try using the MAX() or greatest of the sum of the operations
-            runRoutineList(3, i) = DatabaseModule.GetGreatestOpQty(jobNumUcase).GetRows()(1, 0)
+            
+'            Dim tempArray() As Variant
+'            tempArray = DatabaseModule.GetGreatestOpQty(jobNumUcase)(1, 0)
+            runRoutineList(3, i) = DatabaseModule.GetGreatestOpQty(jobNumUcase)(1, 0)
             runRoutineList(4, i) = "None" 'setupType
             runRoutineList(5, i) = "NA" 'machine
             runRoutineList(6, i) = "NA" 'cell
             
         Else
-            'The part only has a single machining operation
+            'The part only has a single machining operation, this is the bread and butter situation
             runRoutineList(3, i) = jobOperations(4, 0) 'ProdQty
             runRoutineList(4, i) = jobOperations(1, 0) 'setupType
             runRoutineList(5, i) = jobOperations(2, 0) 'machine
@@ -245,7 +247,7 @@ Nexti:
     rtCombo_Enabled = True
 
     'TODO: we dont have this variable anymore, need to switch on runRoutineList(4,0)
-    Select Case setupType
+    Select Case runRoutineList(4, 0)
         Case "Full"
             chkFull_Pressed = True
         Case "Mini"
@@ -256,22 +258,16 @@ Nexti:
             GoTo SetupTypeUndefined
     End Select
     
-    Call SetFeatureVariables
     On Error GoTo ML_RoutineInfo
-    
-
-        
-
-'    Else
-'        MsgBox ("Not A Valid Job Number")
-'        jobNumUcase = ""
-'    End If
+    Call SetFeatureVariables
     
     On Error GoTo 10
     Call SetWorkbookInformation
     
     If toggAutoForm_Pressed Then VettingForm.Show
 10
+    'TODO: once again need to resolve what happens in the event of an invalid job num
+
 
      'Standard updates that are always applicable
     cusRibbon.InvalidateControl "chkFull"
@@ -502,13 +498,39 @@ Function JoinPivotFeatures(featureHeaderInfo() As Variant) As String
 
 End Function
 
-Function GetMachiningLevel(routineName As String) As String
-    'TODO: parse the routineName in combination with our amount of partMachiningOperations to determine the machine level a routine belongs to
-    'By machine level I mean: does the routine belong to op 10 Swiss? op 50 Mill? Which one is it tied to?
-
-    'For operations like FDIM and FVIS, we should be using the highest level avaible that isnt missing
-        '(this is for the prodQty that their AQL will be based off of, trying to get as close as possible to the amount of parts they had
-        '   when doing the final dimensional, and its possible that some good parts were scrapped or lost between ops)
+Function GetMachiningLevel(routineName As Variant) As Integer
+     'TODO: what do we do if a part never has partOperations becuase its is always manufactured outside
+    'set the maximum level
+    Dim maxLevel As Integer
+    maxLevel = UBound(partOperations, 2)
+    Dim routineSub As String
+    
+    'TODO: set error handling here in case the routineName does not make sense
+    routineSub = Split(routineName, partNum & "_" & rev & "_")(1)
+    
+    If (InStr(routineSub, "FA") > 0) Or (InStr(routineSub, "IP") > 0) Then
+        If (Len(routineSub) - Len(Replace(routineSub, "_", "")) >= 2) Or (IsNumeric(Right(routineSub, 1))) Then
+            If maxLevel = 1 Then
+                GetMachiningLevel = 1
+            ElseIf IsNumeric(Right(routineSub, 1)) Then
+                Dim foundLevel As Integer
+                foundLevel = CInt(Right(routineSub, 1))
+                If foundLevel <= maxLevel Then
+                    GetMachiningLevel = (foundLevel - 1)
+                Else
+                    'Return an error here, this should be impossible
+                End If
+            Else
+                'Return an error, this naming convention is not allowed
+            End If
+        Else
+            GetMachiningLevel = 0
+        End If
+    ElseIf InStr(routineSub, "FI") > 0 Then
+        GetMachiningLevel = maxLevel
+    Else
+        'Return an error, we can't parse the abbreviation for this routineName
+    End If
 
 End Function
 
@@ -634,9 +656,13 @@ jbInfoErr:
 End Sub
 
 Private Sub SetWorkbookInformation()
+    For i = 0 To UBound(runRoutineList, 2)
+        If rtCombo_TextField = runRoutineList(0, i) Then Exit For
+    Next i
+    
     On Error GoTo wbErr:
     Call ThisWorkbook.populateJobHeaders(jobNum:=jobNumUcase, routine:=rtCombo_TextField, customer:=customer, _
-                                            machine:=machine, partNum:=partNum, rev:=rev, partDesc:=partDesc)
+                                            machine:=runRoutineList(5, i), partNum:=partNum, rev:=rev, partDesc:=partDesc)
     Call ThisWorkbook.populateReport(featureInfo:=featureHeaderInfo, featureMeasurements:=featureMeasuredValues, _
                                         featureTraceability:=featureTraceabilityInfo)
     Exit Sub

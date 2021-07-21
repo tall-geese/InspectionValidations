@@ -16,7 +16,7 @@ Attribute VB_Exposed = True
 '               populateHeaderFeatureInfo(), populateFeatureMeasuredValues(), populateTraceabilityInfo()
 '*************************************************************************************************
 
-Sub populateJobHeaders(jobNum As String, routine As Variant, customer As String, machine As String, partNum As String, rev As String, partDesc As String)
+Sub populateJobHeaders(jobNum As String, routine As Variant, customer As String, machine As Variant, partNum As String, rev As String, partDesc As String)
     On Error GoTo PopHeadersErr:
     Call Cleanup
     

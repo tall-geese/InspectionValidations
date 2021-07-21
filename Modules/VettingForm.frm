@@ -33,9 +33,6 @@ Dim failedRoutines() As Variant
 
 
 
-Private Sub MultiPage1_Change()
-
-End Sub
 
 '****************************************************************************************
 '               UserForm Callbacks
