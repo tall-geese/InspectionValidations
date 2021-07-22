@@ -34,6 +34,14 @@ Dim failedRoutines() As Variant
 
 
 
+Private Sub MultiPage1_Change()
+
+End Sub
+
+Private Sub RoutineFrame_Click()
+
+End Sub
+
 '****************************************************************************************
 '               UserForm Callbacks
 '****************************************************************************************
@@ -41,7 +49,8 @@ Dim failedRoutines() As Variant
 Private Sub UserForm_Initialize()
     
     Call SetActivePrinter
-
+    
+    
 
     'Set the required routines for the part
     'Also set the required observations for the routine
@@ -58,57 +67,140 @@ Private Sub UserForm_Initialize()
         With Me.ObsReq.Controls(i)
         
             On Error GoTo RoutineNameErr
-        
+            
+            Dim routineCreated As Boolean
+            Dim routineIndex As Integer
+            Dim fullRoutine As String
             Dim routineType As String
+                        
+            fullRoutine = RibbonCommands.partRoutineList(0, i)
             routineType = Split(RibbonCommands.partRoutineList(0, i), RibbonCommands.partNum & "_" & RibbonCommands.rev & "_")(1)
-            
-            
+            routineIndex = RibbonCommands.GetRoutineIndex(fullRoutine)
+            If routineIndex < 99 Then
+                routineCreated = True
+            Else
+                routineCreated = False
+            End If
+'            If (Not routineCreated) Then
+'                Dim level As Integer
+'                level = GetMachiningLevel(fullRoutine)
+'                If (RibbonCommands.machineStageMissing And IsNumeric(Application.Match(level, RibbonCommands.missingLevels, 0))) Then 'if its in our list of likely missing mach operations
+'                    .Visible = False
+'                    .Caption = "0"
+'                    GoTo NextObsReq
+'                Else
+'                   For j = 0 To UBound(jobOperations, 2)
+'                    If (partOperations(1, level) = jobOperations(4, j)) And (partOperations(2, level) = jobOperations(5, j)) Then
+'                        'If the Op# and Op Codes Match, grab the setup type from the matched level
+'                         setupType = jobOperations(1, j)
+'                        GoTo 10
+'                    End If
+'                Next j
+'                End If
+'            Else
+'                setupType = RibbonCommands.runRoutineList(3, routineIndex)
+'            End If
             On Error GoTo RoutineSwitchErr
             
+            
             'Given routine of a name like "DRW-00717-01_RAG_IP_SYLVAC", we're trying to grab the "IP_SYLVAC"
-            Select Case (routineType)
-                Case "FA_FIRST"
-                    If (RibbonCommands.chkFull_Pressed) Then
+            If (InStr(routineType, "FA_") > 0) Or (InStr(routineType, "IP_") > 0) Then
+                Dim setupType As String
+                If (Not routineCreated) Then
+                    Dim level As Integer
+                    level = GetMachiningLevel(fullRoutine)
+                    If (RibbonCommands.machineStageMissing And Not Not (RibbonCommands.missingLevels)) Then 'IsNumeric(Application.Match(level, RibbonCommands.missingLevels, 0))) Then 'if its in our list of likely missing mach operations
+                        If IsNumeric(Application.Match(level, RibbonCommands.missingLevels, 0)) Then
+                            .Visible = False
+                            .Caption = "0"
+                            GoTo NextObsReq
+                        Else
+                            GoTo ShouldExist
+                        End If
+                    Else
+ShouldExist:
+                       For j = 0 To UBound(jobOperations, 2)
+                        If (partOperations(1, level) = jobOperations(4, j)) And (partOperations(2, level) = jobOperations(5, j)) Then
+                            'If the Op# and Op Codes Match, grab the setup type from the matched level
+                             setupType = jobOperations(1, j)
+                            GoTo 10
+                        End If
+                    Next j
+                    End If
+                Else
+                    setupType = RibbonCommands.runRoutineList(3, routineIndex)
+                End If
+                'These types of routines are only sometimes required
+'                If RibbonCommands.machineStageMissing Then
+'                    Dim level As Integer
+'                    level = GetMachiningLevel(fullRoutine)
+'                    If (IsNumeric(Application.Match(level, RibbonCommands.missingLevels, 0))) Then 'if its in our list of likely missing mach operations
+'                        .Visible = False
+'                        .Caption = "0"
+'                        GoTo NextObsReq
+'                    End If
+'                End If
+10
+                If (InStr(routineType, "FIRST") > 0) Then
+                    If (setupType = "Full") Then
                         .Caption = "2"
                         .Visible = True
                     Else
                         .Caption = "0"
                         .Visible = False
                     End If
-                Case "FA_SYLVAC", "FA_CMM", "FA_RAMPROG"
-                    If (RibbonCommands.chkFull_Pressed) Then
+
+                ElseIf (InStr(routineType, "FA_SYLVAC") > 0 Or InStr(routineType, "FA_CMM") > 0 Or InStr(routineType, "FA_RAMPROG") > 0) Then
+                    If (setupType = "Full") Then
                         .Caption = "1"
                         .Visible = True
                     Else
                         .Caption = "0"
                         .Visible = False
                     End If
-                Case "FA_MINI"
-                    If (RibbonCommands.chkMini_Pressed) Then
+                
+                ElseIf (InStr(routineType, "FA_MINI") > 0) Then
+                    If (setupType = "Mini") Then
                         .Caption = "2"
                         .Visible = True
                     Else
                         .Caption = "0"
                         .Visible = False
                     End If
-                Case "FA_VIS"
-                    If (RibbonCommands.chkNone_Pressed) Then
+                
+                ElseIf (InStr(routineType, "FA_VIS") > 0) Then
+                    If (setupType = "None") Then
                         .Caption = "2"
                         .Visible = True
                     Else
                         .Caption = "0"
                         .Visible = False
                     End If
-                Case "IP_1XSHIFT"
+                
+                ElseIf (InStr(routineType, "IP_1XSHIFT") > 0) Then
                     .Caption = DatabaseModule.Get1XSHIFTInsps(JobID:=RibbonCommands.jobNumUcase)
                     .Visible = True
-                Case "IP_EDM"
+                
+                ElseIf (InStr(routineType, "IP_EDM") > 0) Then
                     .Caption = RibbonCommands.prodQty
                     .Visible = True
-                Case "FI_VIS", "IP_LAST"
+                
+                ElseIf (InStr(routineType, "IP_LAST") > 0) Then
                     .Caption = "1"
                     .Visible = True
-                Case "FI_DIM"
+                
+                Else
+                    'Anything not covered above should be AQL quantity
+                    .Caption = ExcelHelpers.GetAQL(customer:=RibbonCommands.customer, drawNum:=RibbonCommands.drawNum, _
+                                            prodQty:=RibbonCommands.prodQty)
+                    .Visible = True
+                End If
+                
+            ElseIf InStr(routineType, "FI_") > 0 Then
+                If (InStr(routineType, "FI_VIS") > 0) Then
+                    .Caption = "1"
+                    .Visible = True
+                ElseIf (InStr(routineType, "FI_DIM") > 0) Then
                     If DatabaseModule.IsAllAttribrute(routine:=RibbonCommands.partRoutineList(0, i)) Then
                         .Caption = "1"
                     Else
@@ -116,14 +208,19 @@ Private Sub UserForm_Initialize()
                                             prodQty:=RibbonCommands.prodQty)
                     End If
                     .Visible = True
-                Case Else
-                    'Anything not covered above should be AQL quantity
+                ElseIf (InStr(routineType, "FI_OP") > 0) Then
                     .Caption = ExcelHelpers.GetAQL(customer:=RibbonCommands.customer, drawNum:=RibbonCommands.drawNum, _
                                             prodQty:=RibbonCommands.prodQty)
                     .Visible = True
-            End Select
+                Else
+                End If
+            Else
+                GoTo RoutineSwitchErr
+            
+            End If
+            
+NextObsReq:
         End With
-        
     Next i
     
     On Error GoTo 0
@@ -185,17 +282,64 @@ UniqueRoutineErr:
 
 RoutineSwitchErr:
        result = MsgBox("Error when determining observations needed for : " & RibbonCommands.runRoutineList(0, i) & vbCrLf & _
-                Err.description, vbCritical)
+                 "UserForm Init" & vbCrLf & Err.description, vbCritical)
 
 End Sub
 
 
 Private Sub EmailButton_Click()
-    Dim cellLeadEmail As String
-    cellLeadEmail = DatabaseModule.GetCellLeadEmail(cell:=RibbonCommands.cell)
+    'TODO: depending on the routines that failed, we could have multiple machines and cell that we need to pass to CreateEmail now
+    Dim cells() As Variant
+    Dim machines() As Variant
     
+    For i = 0 To UBound(failedRoutines, 2)
+        Dim level As Integer
+        level = RibbonCommands.GetMachiningLevel(failedRoutines(0, i))
+        For j = 0 To UBound(RibbonCommands.jobOperations, 2)
+            'TODOL what to do here if a routine is a failure becuase noeone ever created it
+            If ((RibbonCommands.partOperations(1, level) = RibbonCommands.jobOperations(4, j)) _
+                And RibbonCommands.partOperations(2, level) = RibbonCommands.jobOperations(5, j)) Then
+                    Dim machine As String
+                    Dim cell As String
+                    machine = RibbonCommands.jobOperations(2, j)
+                    cell = RibbonCommands.jobOperations(3, j)
+                    
+                    If ((Not cells) = -1 And (Not machines) = -1) Then
+                        ReDim Preserve cells(0)
+                        ReDim Preserve machines(0)
+                        cells(0) = cell
+                        machines(0) = machine
+                    Else
+                        If Not (IsNumeric(Application.Match(cell, cells, 0))) Then 'If the cell is not already in our list of cells, add it
+                            ReDim Preserve cells(UBound(cells) + 1)
+                            cells(UBound(cells)) = cell
+                        End If
+                        If Not (IsNumeric(Application.Match(machine, machines, 0))) Then 'If the machines is not already in our list of machines, add it
+                            ReDim Preserve machines(UBound(machines) + 1)
+                            machines(UBound(machines)) = machine
+                        End If
+                    End If
+                    GoTo Nexti
+            End If
+        Next j
+      'If we made it here then we either have no jobOperations or our routine's Level is higher then we machined here (Like FI_ routines and skipping 1)
+      'TODO: Do we need to error handle here?
+Nexti:
+    Next i
+    
+    Dim cellLeadEmail As String
+    For i = 0 To UBound(cells)
+        cellLeadEmail = cellLeadEmail & DatabaseModule.GetCellLeadEmail(cell:=cells(i)) & ";"
+    Next i
+    
+    Dim machineList As String
+    For i = 0 To UBound(machines)
+        machineList = machineList & machines(i)
+        If i <> UBound(machines) Then machineList = machineList & ","
+    Next i
+        
     Call ExcelHelpers.CreateEmail(qcManager:=qcManagerAlertReq, cellLead:=cellLeadAlertReq, cellLeadEmail:=cellLeadEmail, _
-                                    jobNum:=RibbonCommands.jobNumUcase, machine:=RibbonCommands.machine, failInfo:=failedRoutines)
+                                    jobNum:=RibbonCommands.jobNumUcase, machine:=machineList, failInfo:=failedRoutines)
 
 End Sub
 
@@ -290,7 +434,6 @@ Private Sub setFailure(location As Variant, routine As String)
         .Top = .Top + 4
     
     End With
-    
     
     'If there was a problem with and 'FI' Routine like 'FI_DIM' then we need to alert the QC manager, otherwise we need to alert the cell lead
     Dim routineSuffix As String

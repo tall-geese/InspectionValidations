@@ -16,6 +16,7 @@ Public partNum As String
 Public rev As String
 Public partDesc As String
 Public drawNum As String
+Public prodQty As Integer
 
 'Epicor Operation-Specific JobInfo
 Public multiMachinePart As Boolean
@@ -33,7 +34,6 @@ Public jobOperations() As Variant
     '(4,i) -> ProdQty
     '(5,i) -> OprSeq
     '(6,i) -> OpCode
-
 'Routines for the part / Routines that we've run
 Public partRoutineList() As Variant
     '(0,i) -> RoutineName
@@ -41,10 +41,9 @@ Public runRoutineList() As Variant
     '(0,i) -> RoutineName
     '(1,i) -> RunStatus
     '(2,i) -> ObsFound
-    '(3,i) -> prodQty  <-- is there anyway we can grab a different prod qty for Final Dim? How can we truly know the AQL?
-    '(4,i) -> setupType
-    '(5,i) -> machine
-    '(6,i) -> cell
+    '(3,i) -> setupType
+    '(4,i) -> machine
+    '(5,i) -> cell
 
 'Features and Measurement Information, applicable to the currently selected Routine
 Dim featureHeaderInfo() As Variant
@@ -132,7 +131,7 @@ Public Sub jbEditText_OnChange(ByRef control As Office.IRibbonControl, ByRef Tex
         If (Not Not jobOperations) And (Not Not partOperations) Then 'we have a list of part operations and job operations
             For i = 0 To UBound(partOperations, 2)
                 For j = 0 To UBound(jobOperations, 2)
-                    If (partOperations(1, i) = jobOperations(5, j)) And (partOperations(2, i) = jobOperations(6, j)) Then
+                    If (partOperations(1, i) = jobOperations(4, j)) And (partOperations(2, i) = jobOperations(5, j)) Then
                         'If the Op# and Op Codes Match, then we dont need to do anything here
                         GoTo Nexti
                     End If
@@ -164,7 +163,7 @@ Nexti:
         ElseIf ((Not jobOperations) = -1) And ((Not partOperations) = -1) Then  'neither have been initialized, no one should call for
                                                                             'manufacturing routines anyway, skip ahead
             'theoretically we could just leav this alone
-            'maybe we should set machineStageMissing back to False, since really nothing is missing now
+            'TODO: maybe we should set machineStageMissing back to False, since really nothing is missing now
         End If
     End If
     
@@ -176,7 +175,7 @@ Nexti:
     
     'Pass the results of the temp to the runRoutine List, we're going to add another dimension where we
         'Keep track of the #ObsFound for each routine and use this later in the UserForm
-    ReDim Preserve runRoutineList(6, UBound(tempRoutineArray, 2))
+    ReDim Preserve runRoutineList(5, UBound(tempRoutineArray, 2))
     For i = 0 To UBound(tempRoutineArray, 2)
         runRoutineList(0, i) = tempRoutineArray(0, i)
         runRoutineList(1, i) = tempRoutineArray(1, i)
@@ -208,11 +207,11 @@ Nexti:
             level = GetMachiningLevel(routineName:=runRoutineList(0, i))
             'Theoretically shouldnt have to check if a op of that level exists, since somebody bothered to create the routine for it
             For j = 0 To UBound(jobOperations, 2)
-                If (partOperations(1, level) = jobOperations(5, j)) And (partOperations(2, level) = jobOperations(6, j)) Then
-                    runRoutineList(3, i) = jobOperations(4, j) 'ProdQty
-                    runRoutineList(4, i) = jobOperations(1, j) 'setupType
-                    runRoutineList(5, i) = jobOperations(2, j) 'machine
-                    runRoutineList(6, i) = jobOperations(3, j) 'cell
+                If (partOperations(1, level) = jobOperations(4, j)) And (partOperations(2, level) = jobOperations(5, j)) Then
+'                    runRoutineList(3, i) = jobOperations(4, j) 'ProdQty
+                    runRoutineList(3, i) = jobOperations(1, j) 'setupType
+                    runRoutineList(4, i) = jobOperations(2, j) 'machine
+                    runRoutineList(5, i) = jobOperations(3, j) 'cell
                 End If
             Next j
             
@@ -223,17 +222,17 @@ Nexti:
             
 '            Dim tempArray() As Variant
 '            tempArray = DatabaseModule.GetGreatestOpQty(jobNumUcase)(1, 0)
-            runRoutineList(3, i) = DatabaseModule.GetGreatestOpQty(jobNumUcase)(1, 0)
-            runRoutineList(4, i) = "None" 'setupType
-            runRoutineList(5, i) = "NA" 'machine
-            runRoutineList(6, i) = "NA" 'cell
+'            runRoutineList(3, i) = DatabaseModule.GetGreatestOpQty(jobNumUcase)(1, 0)
+            runRoutineList(3, i) = "None" 'setupType
+            runRoutineList(4, i) = "NA" 'machine
+            runRoutineList(5, i) = "NA" 'cell
             
         Else
             'The part only has a single machining operation, this is the bread and butter situation
-            runRoutineList(3, i) = jobOperations(4, 0) 'ProdQty
-            runRoutineList(4, i) = jobOperations(1, 0) 'setupType
-            runRoutineList(5, i) = jobOperations(2, 0) 'machine
-            runRoutineList(6, i) = jobOperations(3, 0) 'cell
+'            runRoutineList(3, i) = jobOperations(4, 0) 'ProdQty
+            runRoutineList(3, i) = jobOperations(1, 0) 'setupType
+            runRoutineList(4, i) = jobOperations(2, 0) 'machine
+            runRoutineList(5, i) = jobOperations(3, 0) 'cell
         End If
     Next i
     
@@ -247,7 +246,7 @@ Nexti:
     rtCombo_Enabled = True
 
     'TODO: we dont have this variable anymore, need to switch on runRoutineList(4,0)
-    Select Case runRoutineList(4, 0)
+    Select Case runRoutineList(3, 0)
         Case "Full"
             chkFull_Pressed = True
         Case "Mini"
@@ -498,7 +497,7 @@ Function JoinPivotFeatures(featureHeaderInfo() As Variant) As String
 
 End Function
 
-Function GetMachiningLevel(routineName As Variant) As Integer
+Public Function GetMachiningLevel(routineName As Variant) As Integer
      'TODO: what do we do if a part never has partOperations becuase its is always manufactured outside
     'set the maximum level
     Dim maxLevel As Integer
@@ -615,8 +614,8 @@ Private Sub SetJobVariables(jobNum As String)
  '   machine = jobInfo(6, 0)
 '    cell = jobInfo(7, 0)
     partDescription = jobInfo(5, 0)
- '  prodQty = jobInfo(9, 0)
     drawNum = jobInfo(6, 0)
+    prodQty = jobInfo(7, 0)
     
     Exit Sub
     
@@ -656,13 +655,12 @@ jbInfoErr:
 End Sub
 
 Private Sub SetWorkbookInformation()
-    For i = 0 To UBound(runRoutineList, 2)
-        If rtCombo_TextField = runRoutineList(0, i) Then Exit For
-    Next i
+    Dim index As Integer
+    index = GetRoutineIndex(rtCombo_TextField)
     
     On Error GoTo wbErr:
     Call ThisWorkbook.populateJobHeaders(jobNum:=jobNumUcase, routine:=rtCombo_TextField, customer:=customer, _
-                                            machine:=runRoutineList(5, i), partNum:=partNum, rev:=rev, partDesc:=partDesc)
+                                            machine:=runRoutineList(4, i), partNum:=partNum, rev:=rev, partDesc:=partDesc)
     Call ThisWorkbook.populateReport(featureInfo:=featureHeaderInfo, featureMeasurements:=featureMeasuredValues, _
                                         featureTraceability:=featureTraceabilityInfo)
     Exit Sub
@@ -671,4 +669,16 @@ wbErr:
     Err.Raise Number:=vbObjectError + 1200
     
 End Sub
+
+Public Function GetRoutineIndex(routineName As String) As Integer
+    For i = 0 To UBound(runRoutineList, 2)
+        If routineName = runRoutineList(0, i) Then GoTo FoundRoutine
+    Next i
+    
+    GetRoutineIndex = 99
+    Exit Function
+    
+FoundRoutine:
+    GetRoutineIndex = i
+End Function
 

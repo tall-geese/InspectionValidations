@@ -168,7 +168,7 @@ End Function
 
 Public Function GetAddress(column As Integer) As String
     Dim vArr
-    vArr = Split(Cells(1, column).Address(True, False), "$")
+    vArr = Split(cells(1, column).Address(True, False), "$")
     GetAddress = vArr(0)
 
 End Function

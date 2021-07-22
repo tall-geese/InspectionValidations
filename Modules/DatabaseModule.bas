@@ -216,7 +216,7 @@ End Function
 Function GetJobOperationInfo(JobID As String) As Variant()
     On Error GoTo JobOpErr
     Set fso = New FileSystemObject
-    params = Array("ld.JobNum," & JobID, "jh.JobNum," & JobID)
+    params = Array("jh.JobNum," & JobID)
     query = fso.OpenTextFile(DataSources.QUERIES_PATH & "EpicorOperationInfo.sql").ReadAll
 
     Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.E10)
@@ -304,7 +304,12 @@ Function GetFeatureMeasuredValues(jobNum As String, routine As String, delimFeat
     Exit Function
 
 FeatureValuesErr:
-    Err.Raise Number:=Err.Number, description:="Func: ML7-GetFeatureMeasuredValues" & vbCrLf & Err.description
+    If Err.Number = vbObjectError + 2000 Then
+        Err.Raise Number:=Err.Number, description:="Func: ML7-GetFeatureMeasuredValues" & vbCrLf & "Routine:" & routine & _
+                vbCrLf & "was created, but no observations were taken for it. Can't process" & vbCrLf & Err.description
+    Else
+        Err.Raise Number:=Err.Number, description:="Func: ML7-GetFeatureMeasuredValues" & vbCrLf & Err.description
+    End If
 End Function
 
     'Get all observation values, don't filter
@@ -440,7 +445,7 @@ Function GetCustomerName(jobNum As String) As String
     End If
 
     jobInfo = GetJobInformation(JobID:=jobNum)
-    searchParam = jobInfo(0, 4)
+    searchParam = jobInfo(4, 0)
 20
     On Error GoTo CustomerNameErr
     Set fso = New FileSystemObject
@@ -458,7 +463,7 @@ CustomerNameErr:
 End Function
 
     'Can't use static emails since positions often change, update the emails in the database accordingly.
-Function GetCellLeadEmail(cell As String) As String
+Function GetCellLeadEmail(cell As Variant) As String
     On Error GoTo GetEmailErr
     Set fso = New FileSystemObject
     query = "SELECT Email FROM InspectionKiosk.dbo.VettingEmails WHERE Cell=?"
