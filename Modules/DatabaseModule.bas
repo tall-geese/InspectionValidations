@@ -180,10 +180,10 @@ JobInfoErr:
 End Function
 
 
-Function Get1XSHIFTInsps(JobID As String) As String
+Function Get1XSHIFTInsps(JobID As String, Operation As Variant) As String
     On Error GoTo ShiftERR
     Set fso = New FileSystemObject
-    params = Array("jo.JobNum," & JobID)
+    params = Array("jo.JobNum," & JobID, "jo.OprSeq," & Operation)
     query = fso.OpenTextFile(DataSources.QUERIES_PATH & "1XSHIFT.sql").ReadAll
 
     Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.E10)

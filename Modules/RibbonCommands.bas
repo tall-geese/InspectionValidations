@@ -277,13 +277,12 @@ QueryRoutines:
     On Error GoTo ML_RoutineInfo
     Call SetFeatureVariables
     
-    On Error GoTo 10
-    Call SetWorkbookInformation
+'    On Error GoTo 10
 20
     If toggAutoForm_Pressed Then VettingForm.Show
 10
     'TODO: once again need to resolve what happens in the event of an invalid job num
-
+    Call SetWorkbookInformation
 
      'Standard updates that are always applicable
     cusRibbon.InvalidateControl "chkFull"
@@ -631,25 +630,6 @@ Private Sub SetJobVariables(jobNum As String)
     ProdQty = jobInfo(7, 0)
     
     Exit Sub
-    
-    '    If Not sqlRecordSet.EOF Then
-'        'Set values to pass to the Header Fields
-'        If Not IsMissing(partNum) Then partNum = sqlRecordSet.Fields(2).Value
-'        If Not IsMissing(rev) Then rev = sqlRecordSet.Fields(3).Value
-'        If Not IsMissing(setupType) Then setupType = sqlRecordSet.Fields(4).Value
-'
-'        'This one is usually only called/set by the GetCustomerName()
-'        If Not IsMissing(custName) Then custName = sqlRecordSet.Fields(5).Value
-'
-'        If Not IsMissing(machine) Then machine = sqlRecordSet.Fields(6).Value
-'        If Not IsMissing(cell) Then cell = sqlRecordSet.Fields(7).Value
-'        If Not IsMissing(partDescription) Then partDescription = sqlRecordSet.Fields(8).Value
-'        If Not IsMissing(prodQty) Then prodQty = sqlRecordSet.Fields(9).Value
-'        If Not IsMissing(drawNum) Then drawNum = sqlRecordSet.Fields(10).Value
-'        GetJobInformation = True
-'        Exit Function
-'    End If
-    
 
 jbInfoErr:
     'If the recordSet is empty
@@ -669,11 +649,17 @@ End Sub
 
 Private Sub SetWorkbookInformation()
     Dim index As Integer
-    index = GetRoutineIndex(rtCombo_TextField)
+    Dim machine As String
+    If (Not Not runRoutineList) Then
+        index = GetRoutineIndex(rtCombo_TextField)
+        machine = runRoutineList(4, index)
+    Else
+        machine = ""
+    End If
     
     On Error GoTo wbErr:
     Call ThisWorkbook.populateJobHeaders(jobNum:=jobNumUcase, routine:=rtCombo_TextField, customer:=customer, _
-                                            machine:=runRoutineList(4, index), partNum:=partNum, rev:=rev, partDesc:=partDesc)
+                                            machine:=machine, partNum:=partNum, rev:=rev, partDesc:=partDesc)
     Call ThisWorkbook.populateReport(featureInfo:=featureHeaderInfo, featureMeasurements:=featureMeasuredValues, _
                                         featureTraceability:=featureTraceabilityInfo)
     Exit Sub

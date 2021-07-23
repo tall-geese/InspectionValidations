@@ -33,9 +33,6 @@ Dim aqlQuantity As String
 
 
 
-Private Sub MultiPage1_Change()
-
-End Sub
 
 '****************************************************************************************
 '               UserForm Callbacks
@@ -81,9 +78,9 @@ Private Sub UserForm_Initialize()
             
             'Given routine of a name like "DRW-00717-01_RAG_IP_SYLVAC", we're trying to grab the "IP_SYLVAC"
             If (InStr(routineType, "FA_") > 0) Or (InStr(routineType, "IP_") > 0) Then
+                Dim level As Integer
                 Dim setupType As String
                 If (Not routineCreated) Then
-                    Dim level As Integer
                     level = GetMachiningLevel(fullRoutine)
                     If (RibbonCommands.machineStageMissing And Not Not (RibbonCommands.missingLevels)) Then 'IsNumeric(Application.Match(level, RibbonCommands.missingLevels, 0))) Then 'if its in our list of likely missing mach operations
                         If IsNumeric(Application.Match(level, RibbonCommands.missingLevels, 0)) Then
@@ -144,7 +141,8 @@ ShouldExist:
                     End If
                 
                 ElseIf (InStr(routineType, "IP_1XSHIFT") > 0) Then
-                    .Caption = DatabaseModule.Get1XSHIFTInsps(JobID:=RibbonCommands.jobNumUcase)
+                    level = GetMachiningLevel(fullRoutine)
+                    .Caption = DatabaseModule.Get1XSHIFTInsps(JobID:=RibbonCommands.jobNumUcase, Operation:=RibbonCommands.partOperations(1, level))
                     .Visible = True
                 
                 ElseIf (InStr(routineType, "IP_EDM") > 0) Then
