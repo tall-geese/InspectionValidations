@@ -124,8 +124,13 @@ Public Sub jbEditText_OnChange(ByRef control As Office.IRibbonControl, ByRef Tex
     
     jobOperations = DatabaseModule.GetJobOperationInfo(jobNumUcase)
     'If there were not job machining ops or less machining ops then we expected
-    If ((Not jobOperations) = -1) Or (UBound(jobOperations, 2) < UBound(partOperations, 2)) Then machineStageMissing = True
+    If ((Not jobOperations) = -1) Then
+        machineStageMissing = True
+        GoTo SkipUbound
+    End If
+    If (UBound(jobOperations, 2) < UBound(partOperations, 2)) Then machineStageMissing = True
     
+SkipUbound:
     'If ops are missing, we need to determine which ones so we can ignore those respective routines later.
     If machineStageMissing = True Then
         If (Not Not jobOperations) And (Not Not partOperations) Then 'we have a list of part operations and job operations
@@ -167,11 +172,13 @@ Nexti:
         End If
     End If
     
-    
+    Dim tempRoutineArray() As Variant
     On Error GoTo ML_QueryErr:
     customer = DatabaseModule.GetCustomerName(jobNum:=jobNumUcase)
-    tempRoutineArray = DatabaseModule.GetRunRoutineList(jobNumUcase)
     partRoutineList = DatabaseModule.GetPartRoutineList(partNum, rev)
+    tempRoutineArray = DatabaseModule.GetRunRoutineList(jobNumUcase)
+
+    If ((Not tempRoutineArray) = -1) Then GoTo 20 'We didnt find any routines for the run
     
     'Pass the results of the temp to the runRoutine List, we're going to add another dimension where we
         'Keep track of the #ObsFound for each routine and use this later in the UserForm
@@ -190,8 +197,16 @@ Nexti:
         features = DatabaseModule.GetFeatureHeaderInfo(jobNum:=jobNumUcase, routine:=routine)
 
         'Add the number of found Observations
-        runRoutineList(2, i) = UBound(DatabaseModule.GetFeatureMeasuredValues(jobNum:=jobNumUcase, routine:=routine, _
-                                        delimFeatures:=JoinPivotFeatures(features), featureInfo:=features), 2) + 1
+        Dim featureCount() As Variant
+        featureCount = DatabaseModule.GetFeatureMeasuredValues(jobNum:=jobNumUcase, routine:=routine, _
+                                        delimFeatures:=JoinPivotFeatures(features), featureInfo:=features)
+        If ((Not featureCount) = -1) Then
+            runRoutineList(2, i) = 0
+        Else
+            runRoutineList(2, i) = UBound(featureCount, 2) + 1
+        End If
+'        runRoutineList(2, i) = UBound(DatabaseModule.GetFeatureMeasuredValues(jobNum:=jobNumUcase, routine:=routine, _
+'                                        delimFeatures:=JoinPivotFeatures(features), featureInfo:=features), 2) + 1
         'TODO: Add run mahciningLevel, cell, machine, setup Type, Completed Qty
         'We should be using the 'FA', 'FI', code in the routine name to determine What opCode we should be searching in
         'Let another functin handle this and come up with the determined level
@@ -262,7 +277,7 @@ Nexti:
     
     On Error GoTo 10
     Call SetWorkbookInformation
-    
+20
     If toggAutoForm_Pressed Then VettingForm.Show
 10
     'TODO: once again need to resolve what happens in the event of an invalid job num
@@ -609,11 +624,7 @@ Private Sub SetJobVariables(jobNum As String)
     
     partNum = jobInfo(2, 0)
     rev = jobInfo(3, 0)
-   ' setupType = jobInfo(4, 0)
-'    custName = jobInfo(5, 0) 'This shouldnt be set here, we have to let another function set the customer name
- '   machine = jobInfo(6, 0)
-'    cell = jobInfo(7, 0)
-    partDescription = jobInfo(5, 0)
+    partDesc = jobInfo(5, 0)
     drawNum = jobInfo(6, 0)
     prodQty = jobInfo(7, 0)
     
@@ -660,7 +671,7 @@ Private Sub SetWorkbookInformation()
     
     On Error GoTo wbErr:
     Call ThisWorkbook.populateJobHeaders(jobNum:=jobNumUcase, routine:=rtCombo_TextField, customer:=customer, _
-                                            machine:=runRoutineList(4, i), partNum:=partNum, rev:=rev, partDesc:=partDesc)
+                                            machine:=runRoutineList(4, index), partNum:=partNum, rev:=rev, partDesc:=partDesc)
     Call ThisWorkbook.populateReport(featureInfo:=featureHeaderInfo, featureMeasurements:=featureMeasuredValues, _
                                         featureTraceability:=featureTraceabilityInfo)
     Exit Sub
@@ -671,10 +682,12 @@ wbErr:
 End Sub
 
 Public Function GetRoutineIndex(routineName As String) As Integer
+    If ((Not runRoutineList) = -1) Then GoTo 10
+
     For i = 0 To UBound(runRoutineList, 2)
         If routineName = runRoutineList(0, i) Then GoTo FoundRoutine
     Next i
-    
+10
     GetRoutineIndex = 99
     Exit Function
     

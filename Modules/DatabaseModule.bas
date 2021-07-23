@@ -192,7 +192,13 @@ Function Get1XSHIFTInsps(JobID As String) As String
     Exit Function
     
 ShiftERR:
-    Err.Raise Number:=Err.Number, description:="Func: E10-Get1XSHIFTInsps" & vbCrLf & Err.description
+    If Err.Number = vbObjectError + 2000 Then
+        Get1XSHIFTInsps = "0"  'Technically, if we didnt run any shifts, we dont owe any inspections
+        Exit Function
+    Else
+        Err.Raise Number:=Err.Number, description:="Func: E10-Get1XSHIFTInsps" & vbCrLf & Err.description
+    End If
+    
 End Function
 
 Function GetPartOperationInfo(JobID As String) As Variant()
@@ -228,7 +234,14 @@ Function GetJobOperationInfo(JobID As String) As Variant()
     Exit Function
     
 JobOpErr:
-    Err.Raise Number:=Err.Number, description:="Func: E10-GetJobOpInfo" & vbCrLf & Err.description
+    If Err.Number = vbObjectError + 2000 Then
+        Dim emptyArr() As Variant
+        GetJobOperationInfo = emptyArr
+        Exit Function
+    Else
+        Err.Raise Number:=Err.Number, description:="Func: E10-GetJobOpInfo" & vbCrLf & Err.description
+    End If
+
 End Function
 
 Function GetGreatestOpQty(JobID As String) As Variant()
@@ -305,8 +318,9 @@ Function GetFeatureMeasuredValues(jobNum As String, routine As String, delimFeat
 
 FeatureValuesErr:
     If Err.Number = vbObjectError + 2000 Then
-        Err.Raise Number:=Err.Number, description:="Func: ML7-GetFeatureMeasuredValues" & vbCrLf & "Routine:" & routine & _
-                vbCrLf & "was created, but no observations were taken for it. Can't process" & vbCrLf & Err.description
+        Dim emptyArr() As Variant
+        GetFeatureMeasuredValues = emptyArr
+        Exit Function
     Else
         Err.Raise Number:=Err.Number, description:="Func: ML7-GetFeatureMeasuredValues" & vbCrLf & Err.description
     End If
@@ -325,7 +339,13 @@ Function GetAllFeatureMeasuredValues(jobNum As String, routine As String, delimF
     Exit Function
     
 AllFeatureValuesErr:
-    Err.Raise Number:=Err.Number, description:="Func: ML7-GetAllFeatureMeasuredValues" & vbCrLf & Err.description
+    If Err.Number = vbObjectError + 2000 Then
+        Dim emptyArr() As Variant
+        GetAllFeatureMeasuredValues = emptyArr
+        Exit Function
+    Else
+        Err.Raise Number:=Err.Number, description:="Func: ML7-GetAllFeatureMeasuredValues" & vbCrLf & Err.description
+    End If
 End Function
 
     'Date, Employee ID - Filter out failed observations
@@ -341,7 +361,13 @@ Function GetFeatureTraceabilityData(jobNum As String, routine As String) As Vari
     Exit Function
     
 FeatureTraceabilityErr:
-    Err.Raise Number:=Err.Number, description:="Func: ML7-GetFeatureTraceabilityData" & vbCrLf & Err.description
+    If Err.Number = vbObjectError + 2000 Then
+        Dim emptyArr() As Variant
+        GetFeatureTraceabilityData = emptyArr
+        Exit Function
+    Else
+        Err.Raise Number:=Err.Number, description:="Func: ML7-GetFeatureTraceabilityData" & vbCrLf & Err.description
+    End If
 End Function
 
     'Date, Employee ID - Dont Filter out failed observations
@@ -357,7 +383,13 @@ Function GetAllFeatureTraceabilityData(jobNum As String, routine As String) As V
     Exit Function
     
 AllFeatureTraceabilityErr:
-    Err.Raise Number:=Err.Number, description:="Func: ML7-GetAllFeatureTraceabilityData" & vbCrLf & Err.description
+    If Err.Number = vbObjectError + 2000 Then
+        Dim emptyArr() As Variant
+        GetAllFeatureTraceabilityData = emptyArr
+        Exit Function
+    Else
+        Err.Raise Number:=Err.Number, description:="Func: ML7-GetAllFeatureTraceabilityData" & vbCrLf & Err.description
+    End If
 End Function
 
     'Called by userform to determine how many Inspections it should require for FI_DIM
@@ -399,7 +431,12 @@ Function GetPartRoutineList(partNum As String, Revision As String) As Variant()
     Exit Function
     
 PartRoutineListErr:
-    Err.Raise Number:=Err.Number, description:="Func: ML7-GetPartRoutineList" & vbCrLf & Err.description
+    If Err.Number = vbObjectError + 2000 Then
+        Err.Raise Number:=vbObjectError + 2000, description:="No Routines Found for this Part Number" & vbCrLf & "This may not be a MeasurLink applicable part" & vbCrLf & Err.description
+    Else
+        Err.Raise Number:=Err.Number, description:="Func: ML7-GetPartRoutineList" & vbCrLf & Err.description
+    End If
+    
 End Function
 
     'All the routines created for this run
@@ -411,13 +448,18 @@ Function GetRunRoutineList(jobNum As String) As Variant()
 
     Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.ML7)
     
-    If Not sqlRecordSet.EOF Then
-        GetRunRoutineList = sqlRecordSet.GetRows()
-        Exit Function
-    End If
+    GetRunRoutineList = sqlRecordSet.GetRows()
+    Exit Function
     
 RunRoutineListErr:
-    Err.Raise Number:=Err.Number, description:="Func: ML7-GetRunRoutineList" & vbCrLf & Err.description
+    If Err.Number = vbObjectError + 2000 Then
+        Dim noRoutines() As Variant
+        GetRunRoutineList = noRoutines
+        Exit Function
+    Else
+        Err.Raise Number:=Err.Number, description:="Func: ML7-GetRunRoutineList" & vbCrLf & Err.description
+    End If
+    
 End Function
 
 

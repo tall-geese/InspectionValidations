@@ -130,6 +130,8 @@ Private Sub populateFeatureMeasuredValues(featureMeasurements() As Variant)
     
     'featureMeasurements(n,m) -> [Value]
     On Error GoTo FeatureValuesErr
+    
+    If ((Not featureMeasurements) = -1) Then Exit Sub
 
     For i = 0 To UBound(featureMeasurements, 1)
             If i = 0 Then GoTo NextFeature
@@ -189,6 +191,8 @@ Private Sub populateTraceabilityInfo(featureTraceabilityInfo() As Variant, pages
     'featureTraceabilityInfo(3,j) -> "Pass" / "Fail"
     
     On Error GoTo FeatureTraceErr
+    
+    If ((Not featureTraceabilityInfo) = -1) Then Exit Sub
 
     For i = 1 To pages
         With ThisWorkbook.Worksheets("PAGE " & i)

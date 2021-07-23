@@ -238,20 +238,22 @@ NextObsReq:
     
     'Fill the required routines with the routines that we found in the run
     'Also fill in the observations that we have collected
-    For i = 0 To UBound(RibbonCommands.runRoutineList, 2)
-        For j = 0 To Me.RoutineFrame.Count - 1
-            'If the control name matches the found routine name, then we should make the text black and fill in the observations found
-            If (RibbonCommands.runRoutineList(0, i) = Me.RoutineFrame.Controls(j).Caption) Then
-                Me.RoutineFrame.Controls(j).ForeColor = RGB(0, 0, 0)
-                Me.ObsFound.Controls(j).Caption = runRoutineList(2, i)
-                Me.ObsFound.Controls(j).Visible = True
-                GoTo NextControl
-            End If
-        Next j
-        'If we couldnt find a match between required routines and the run routine
-        GoTo UniqueRoutineErr
+    If (Not Not RibbonCommands.runRoutineList) Then
+        For i = 0 To UBound(RibbonCommands.runRoutineList, 2)
+            For j = 0 To Me.RoutineFrame.Count - 1
+                'If the control name matches the found routine name, then we should make the text black and fill in the observations found
+                If (RibbonCommands.runRoutineList(0, i) = Me.RoutineFrame.Controls(j).Caption) Then
+                    Me.RoutineFrame.Controls(j).ForeColor = RGB(0, 0, 0)
+                    Me.ObsFound.Controls(j).Caption = runRoutineList(2, i)
+                    Me.ObsFound.Controls(j).Visible = True
+                    GoTo NextControl
+                End If
+            Next j
+            'If we couldnt find a match between required routines and the run routine
+            GoTo UniqueRoutineErr
 NextControl:
-    Next i
+        Next i
+    End If
     
     
     Call VetInspections
@@ -292,6 +294,12 @@ Private Sub EmailButton_Click()
     Dim cells() As Variant
     Dim machines() As Variant
     
+    If ((Not RibbonCommands.jobOperations) = -1) Then
+        ReDim Preserve machines(0)
+        machines(0) = "[Outsourced Machining]"
+        GoTo 10
+    End If
+    
     For i = 0 To UBound(failedRoutines, 2)
         Dim level As Integer
         level = RibbonCommands.GetMachiningLevel(failedRoutines(0, i))
@@ -326,12 +334,12 @@ Private Sub EmailButton_Click()
       'TODO: Do we need to error handle here?
 Nexti:
     Next i
-    
+
     Dim cellLeadEmail As String
     For i = 0 To UBound(cells)
         cellLeadEmail = cellLeadEmail & DatabaseModule.GetCellLeadEmail(cell:=cells(i)) & ";"
     Next i
-    
+10
     Dim machineList As String
     For i = 0 To UBound(machines)
         machineList = machineList & machines(i)
