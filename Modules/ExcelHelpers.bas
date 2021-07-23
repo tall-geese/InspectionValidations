@@ -8,13 +8,14 @@ Attribute VB_Name = "ExcelHelpers"
 '*************************************************************************************************
 
 
-Public Function GetAQL(customer As String, drawNum As String, prodQty As Integer) As String
+Public Function GetAQL(customer As String, drawNum As String, ProdQty As Integer) As String()
     Dim partWb As Workbook
-    Dim aqlWb As Workbook
+    Dim aqlWB As Workbook
     Dim aqlVal As String
     Dim reqQty As String
     Dim row As String
     Dim col As Integer
+    Dim returnAQL(2) As String
 
     prefixPath = "J:\Inspection Reports\" & customer & "\" & drawNum & "\" & "Current Revision\"
     
@@ -40,14 +41,15 @@ Public Function GetAQL(customer As String, drawNum As String, prodQty As Integer
     If aqlVal = "" Then GoTo WbReadErr
     
     If aqlVal = "100%" Then
-        GetAQL = prodQty
+        returnAQL(0) = CStr(ProdQty)
+        returnAQL(1) = "100%"
         Exit Function
     End If
+        
+    Set aqlWB = Workbooks.Open(Filename:="\\JADE76\IQS Documents\Current\IR Tables.xlsx", UpdateLinks:=0, ReadOnly:=True)
     
-    Set aqlWb = Workbooks.Open(Filename:="\\JADE76\IQS Documents\Current\IR Tables.xlsx", UpdateLinks:=0, ReadOnly:=True)
     
-    
-    Select Case prodQty
+    Select Case ProdQty
         Case 2 To 8
             row = "2"
         Case 9 To 15
@@ -68,29 +70,32 @@ Public Function GetAQL(customer As String, drawNum As String, prodQty As Integer
             row = "10"
         Case 1201 To 3200
             row = "11"
-        Case 3201 To 99999
+        Case 3201 To 32000
             row = "12"
         Case Else
             GoTo ProdQtyErr
     End Select
     
-    With aqlWb.Worksheets("AQL")
+    With aqlWB.Worksheets("AQL")
         col = .Range("B1:J1").Find(aqlVal).column
         reqQty = .Range(GetAddress(col) & row).Value
     End With
     
     'sometimes The qty required by an AQL is greater than the amount of parts we've made for some reason
     'Like for 10 parts with an AQL of 1.00
-    If reqQty > prodQty Then
-        GetAQL = prodQty
+    If reqQty > ProdQty Then
+        returnAQL(0) = CStr(ProdQty)
     Else
-        GetAQL = reqQty
+        returnAQL(0) = CStr(reqQty)
     End If
+    returnAQL(1) = aqlVal
+    
+    GetAQL = returnAQL
     
     GoTo 10
     
 ProdQtyErr:
-    result = MsgBox("There was a problem attempting to interpret this job's production quantity of " & prodQty & vbCrLf & _
+    result = MsgBox("There was a problem attempting to interpret this job's production quantity of " & ProdQty & vbCrLf & _
                      "Verify that this qty is correct in Epicor and contact a QE for assistance.", vbExclamation)
     GoTo 10
     
@@ -102,7 +107,7 @@ FileDirErr:
                     
 WbReadErr:
     result = MsgBox("There was a problem when trying to read the AQL Level defined on the ML Frequency Chart Worksheet" & _
-                    vbCrLf & "Please let a QE know to fill this value in", vbExclamation)
+                    vbCrLf & "Please let a QE know to fill this value in" & vbCrLf & Err.description, vbExclamation)
 10
     partWb.Close SaveChanges:=False
     Application.ScreenUpdating = True

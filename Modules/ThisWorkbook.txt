@@ -97,8 +97,25 @@ Private Sub populateHeaderFeatureInfo(featureInfo() As Variant)
                 Dim colLetter As String
                 colLetter = ExcelHelpers.GetAddress((i Mod 8) + 5)
                 
-                'TODO: This should be formatted
-                .Range(colLetter & "9").Value = featureInfo(0, i) 'Balloon
+                Dim ballHeader As String
+                ballHeader = featureInfo(0, i)
+                If (Mid(ballHeader, 2, 1) = "_") Then
+                    If (CInt(Right(ballHeader, 2))) > 0 Then
+                        Dim featureNum As String
+                        featureNum = Split(ballHeader, "_")(1)
+                        For j = 0 To Len(featureNum)
+                            If Mid(featureNum, j + 1, 1) <> 0 Then Exit For
+                        Next j
+                        featureNum = Right(featureNum, Len(featureNum) - j)
+                        .Range(colLetter & "9").Value = featureNum & "_" & Split(ballHeader, "_")(2)
+                    Else
+                        .Range(colLetter & "9").Value = Split(ballHeader, "_")(1)
+                    End If
+                Else
+                    .Range(colLetter & "9").Value = ballHeader 'Balloon
+                End If
+                
+                
                 .Range(colLetter & "10").Value = featureInfo(1, i) 'Description
                 
                 If featureInfo(6, i) = "Variable" Then

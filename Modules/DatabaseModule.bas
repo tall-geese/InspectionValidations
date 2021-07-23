@@ -216,7 +216,14 @@ Function GetPartOperationInfo(JobID As String) As Variant()
     Exit Function
     
 PartOpErr:
-    Err.Raise Number:=Err.Number, description:="Func: E10-GetPartOpInfo" & vbCrLf & Err.description
+    If Err.Number = vbObjectError + 2000 Then
+        Dim emptyArr() As Variant
+        GetPartOperationInfo = emptyArr 'Its possible that a part is strictly made outside, see IN0001 integrity springs
+        Exit Function
+    Else
+        Err.Raise Number:=Err.Number, description:="Func: E10-GetPartOpInfo" & vbCrLf & Err.description
+    End If
+    
 End Function
 
 Function GetJobOperationInfo(JobID As String) As Variant()

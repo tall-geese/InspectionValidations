@@ -29,16 +29,11 @@ Attribute VB_Exposed = False
 Dim cellLeadAlertReq As Boolean
 Dim qcManagerAlertReq As Boolean
 Dim failedRoutines() As Variant
-
-
+Dim aqlQuantity As String
 
 
 
 Private Sub MultiPage1_Change()
-
-End Sub
-
-Private Sub RoutineFrame_Click()
 
 End Sub
 
@@ -50,7 +45,7 @@ Private Sub UserForm_Initialize()
     
     Call SetActivePrinter
     
-    
+    Me.ProdQty.Caption = Format(RibbonCommands.ProdQty, "#,###")
 
     'Set the required routines for the part
     'Also set the required observations for the routine
@@ -81,25 +76,6 @@ Private Sub UserForm_Initialize()
             Else
                 routineCreated = False
             End If
-'            If (Not routineCreated) Then
-'                Dim level As Integer
-'                level = GetMachiningLevel(fullRoutine)
-'                If (RibbonCommands.machineStageMissing And IsNumeric(Application.Match(level, RibbonCommands.missingLevels, 0))) Then 'if its in our list of likely missing mach operations
-'                    .Visible = False
-'                    .Caption = "0"
-'                    GoTo NextObsReq
-'                Else
-'                   For j = 0 To UBound(jobOperations, 2)
-'                    If (partOperations(1, level) = jobOperations(4, j)) And (partOperations(2, level) = jobOperations(5, j)) Then
-'                        'If the Op# and Op Codes Match, grab the setup type from the matched level
-'                         setupType = jobOperations(1, j)
-'                        GoTo 10
-'                    End If
-'                Next j
-'                End If
-'            Else
-'                setupType = RibbonCommands.runRoutineList(3, routineIndex)
-'            End If
             On Error GoTo RoutineSwitchErr
             
             
@@ -130,16 +106,6 @@ ShouldExist:
                 Else
                     setupType = RibbonCommands.runRoutineList(3, routineIndex)
                 End If
-                'These types of routines are only sometimes required
-'                If RibbonCommands.machineStageMissing Then
-'                    Dim level As Integer
-'                    level = GetMachiningLevel(fullRoutine)
-'                    If (IsNumeric(Application.Match(level, RibbonCommands.missingLevels, 0))) Then 'if its in our list of likely missing mach operations
-'                        .Visible = False
-'                        .Caption = "0"
-'                        GoTo NextObsReq
-'                    End If
-'                End If
 10
                 If (InStr(routineType, "FIRST") > 0) Then
                     If (setupType = "Full") Then
@@ -182,7 +148,7 @@ ShouldExist:
                     .Visible = True
                 
                 ElseIf (InStr(routineType, "IP_EDM") > 0) Then
-                    .Caption = RibbonCommands.prodQty
+                    .Caption = RibbonCommands.ProdQty
                     .Visible = True
                 
                 ElseIf (InStr(routineType, "IP_LAST") > 0) Then
@@ -191,8 +157,8 @@ ShouldExist:
                 
                 Else
                     'Anything not covered above should be AQL quantity
-                    .Caption = ExcelHelpers.GetAQL(customer:=RibbonCommands.customer, drawNum:=RibbonCommands.drawNum, _
-                                            prodQty:=RibbonCommands.prodQty)
+                    .Caption = GetAQL(customer:=RibbonCommands.customer, drawNum:=RibbonCommands.drawNum, _
+                                            ProdQty:=RibbonCommands.ProdQty)
                     .Visible = True
                 End If
                 
@@ -204,13 +170,13 @@ ShouldExist:
                     If DatabaseModule.IsAllAttribrute(routine:=RibbonCommands.partRoutineList(0, i)) Then
                         .Caption = "1"
                     Else
-                        .Caption = ExcelHelpers.GetAQL(customer:=RibbonCommands.customer, drawNum:=RibbonCommands.drawNum, _
-                                            prodQty:=RibbonCommands.prodQty)
+                        .Caption = GetAQL(customer:=RibbonCommands.customer, drawNum:=RibbonCommands.drawNum, _
+                                            ProdQty:=RibbonCommands.ProdQty)
                     End If
                     .Visible = True
                 ElseIf (InStr(routineType, "FI_OP") > 0) Then
-                    .Caption = ExcelHelpers.GetAQL(customer:=RibbonCommands.customer, drawNum:=RibbonCommands.drawNum, _
-                                            prodQty:=RibbonCommands.prodQty)
+                    .Caption = GetAQL(customer:=RibbonCommands.customer, drawNum:=RibbonCommands.drawNum, _
+                                            ProdQty:=RibbonCommands.ProdQty)
                     .Visible = True
                 Else
                 End If
@@ -478,6 +444,25 @@ Private Sub SetActivePrinter()
 
 End Sub
 
+Private Sub SetAQLHeader(AQL As String)
+    Me.AQL.Caption = AQL
+End Sub
+
+Private Function GetAQL(customer As String, drawNum As String, ProdQty As Integer) As String
+    If aqlQuantity = "" Then
+        Dim aqlValues() As String
+        aqlValues = ExcelHelpers.GetAQL(customer:=RibbonCommands.customer, drawNum:=RibbonCommands.drawNum, _
+                                                ProdQty:=RibbonCommands.ProdQty)
+        Me.AQL.Caption = Format(aqlValues(1), "0.00")
+        aqlQuantity = aqlValues(0)
+        GetAQL = aqlValues(0)
+    Else
+        GetAQL = aqlQuantity
+
+    End If
+
+    
+End Function
 
 
 

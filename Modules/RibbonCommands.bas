@@ -16,7 +16,7 @@ Public partNum As String
 Public rev As String
 Public partDesc As String
 Public drawNum As String
-Public prodQty As Integer
+Public ProdQty As Integer
 
 'Epicor Operation-Specific JobInfo
 Public multiMachinePart As Boolean
@@ -120,6 +120,7 @@ Public Sub jbEditText_OnChange(ByRef control As Office.IRibbonControl, ByRef Tex
             'Information like machine, cell. They will need to either fill NA or use another level's information
     
     partOperations = DatabaseModule.GetPartOperationInfo(jobNumUcase)
+    If ((Not partOperations) = -1) Then GoTo QueryRoutines
     If UBound(partOperations, 2) > 0 Then multiMachinePart = True
     
     jobOperations = DatabaseModule.GetJobOperationInfo(jobNumUcase)
@@ -172,6 +173,7 @@ Nexti:
         End If
     End If
     
+QueryRoutines:
     Dim tempRoutineArray() As Variant
     On Error GoTo ML_QueryErr:
     customer = DatabaseModule.GetCustomerName(jobNum:=jobNumUcase)
@@ -626,7 +628,7 @@ Private Sub SetJobVariables(jobNum As String)
     rev = jobInfo(3, 0)
     partDesc = jobInfo(5, 0)
     drawNum = jobInfo(6, 0)
-    prodQty = jobInfo(7, 0)
+    ProdQty = jobInfo(7, 0)
     
     Exit Sub
     
