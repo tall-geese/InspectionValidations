@@ -101,8 +101,7 @@ Private Sub ExecQuery(query As String, params() As Variant, conn_enum As Connect
 
     If sqlRecordSet.EOF Then
         Err.Raise Number:=vbObjectError + 2000, description:="sub:ExecQuery, no results"
-        'Raise an error here that we returned no rows? That would mean someone created a routine but didnt do any inpsections
-        'See if we can cascade the error upwards where the routine name could be accessed.
+        'Returning no rows is not technically an error, let the calling function handle this
     End If
     
     Exit Sub
@@ -151,11 +150,6 @@ End Sub
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 '               Epicor
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
-'Function GetJobInformation(JobID As String, Optional ByRef partNum As Variant, Optional ByRef rev As Variant, _
-'                                Optional ByRef setupType As Variant, Optional ByRef custName As Variant, _
-'                                Optional ByRef machine As Variant, Optional ByRef cell As Variant, _
-'                                Optional ByRef partDescription As Variant, Optional prodQty As Variant, _
-'                                Optional ByRef drawNum As Variant) As Boolean
 Function GetJobInformation(JobID As String) As Variant()
     
     Set fso = New FileSystemObject
@@ -209,9 +203,6 @@ Function GetPartOperationInfo(JobID As String) As Variant()
 
     Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.E10)
     
-    'TODO: Its possible that we have a part without any machining operations. If we made it past the valid job step and
-    'encountered an EOF here which likely means no machining ops. Handle the err by returning an unitialized array, check for that at RibbonCommands
-    
     GetPartOperationInfo = sqlRecordSet.GetRows()
     Exit Function
     
@@ -234,36 +225,18 @@ Function GetJobOperationInfo(JobID As String) As Variant()
 
     Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.E10)
     
-    'TODO: Its possible that we have a part without any machining operations. If we made it past the valid job step and
-    'encountered an EOF here which likely means no machining ops. Handle the err by returning an unitialized array, check for that at RibbonCommands
-    
     GetJobOperationInfo = sqlRecordSet.GetRows()
     Exit Function
     
 JobOpErr:
     If Err.Number = vbObjectError + 2000 Then
         Dim emptyArr() As Variant
-        GetJobOperationInfo = emptyArr
+        GetJobOperationInfo = emptyArr 'Part didnt actually get machined at all in house
         Exit Function
     Else
         Err.Raise Number:=Err.Number, description:="Func: E10-GetJobOpInfo" & vbCrLf & Err.description
     End If
 
-End Function
-
-Function GetGreatestOpQty(JobID As String) As Variant()
-    On Error GoTo GreatOpQtyErr:
-    Set fso = New FileSystemObject
-    params = Array("ld.JobNum," & JobID)
-    query = fso.OpenTextFile(DataSources.QUERIES_PATH & "EpicorGreatestOpQty.sql").ReadAll
-
-    Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.E10)
-    
-    GetGreatestOpQty = sqlRecordSet.GetRows()
-    Exit Function
-    
-GreatOpQtyErr:
-    Err.Raise Number:=Err.Number, description:="Func: E10-GetGreatestOpQty" & vbCrLf & Err.description
 End Function
 
 
@@ -293,7 +266,7 @@ FeatureHeaderErr:
     Err.Raise Number:=Err.Number, description:="Func: ML7-GetFeatureHeaderInfo" & vbCrLf & Err.description
 End Function
 
-    'Get all observation values, filter out failures
+    'Get observation values, filter out failures
 Function GetFeatureMeasuredValues(jobNum As String, routine As String, delimFeatures As String, featureInfo() As Variant) As Variant()
 
     On Error GoTo FeatureValuesErr
@@ -493,6 +466,7 @@ Function GetCustomerName(jobNum As String) As String
         GoTo 20
     End If
 
+    'Otherwise use the incorrect "customer" name they put in the project database
     jobInfo = GetJobInformation(JobID:=jobNum)
     searchParam = jobInfo(4, 0)
 20

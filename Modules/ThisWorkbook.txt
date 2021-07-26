@@ -91,6 +91,7 @@ Private Sub populateHeaderFeatureInfo(featureInfo() As Variant)
     
     For i = 0 To UBound(featureInfo, 2)
             Dim activePageNum As Integer
+            'Each worksheet can only hold 8 features at a time, beyond that we need to switch the active page we're putting info on
             activePageNum = Application.WorksheetFunction.Floor(i / 8, 1) + 1
             
             With ThisWorkbook.Worksheets("PAGE " & activePageNum)
@@ -99,6 +100,7 @@ Private Sub populateHeaderFeatureInfo(featureInfo() As Variant)
                 
                 Dim ballHeader As String
                 ballHeader = featureInfo(0, i)
+                'If its a numeric balloon number, we should re-format it to be human-readable
                 If (Mid(ballHeader, 2, 1) = "_") Then
                     If (CInt(Right(ballHeader, 2))) > 0 Then
                         Dim featureNum As String
@@ -150,7 +152,7 @@ Private Sub populateFeatureMeasuredValues(featureMeasurements() As Variant)
     
     If ((Not featureMeasurements) = -1) Then Exit Sub
 
-    For i = 0 To UBound(featureMeasurements, 1)
+    For i = 0 To UBound(featureMeasurements, 1) 'For each balloon#
             If i = 0 Then GoTo NextFeature
             Dim activePageNum As Integer
             activePageNum = Application.WorksheetFunction.Floor((i - 1) / 8, 1) + 1
@@ -159,7 +161,7 @@ Private Sub populateFeatureMeasuredValues(featureMeasurements() As Variant)
                 Dim colLetter As String
                 colLetter = ExcelHelpers.GetAddress(((i - 1) Mod 8) + 5)
                 
-                For j = 0 To UBound(featureMeasurements, 2)
+                For j = 0 To UBound(featureMeasurements, 2) 'For each observation
 
                     'if the operator forgot to take a measurement, then it comes up as a NULL value
                     If VarType(featureMeasurements(i, j)) = vbNull Then
@@ -214,8 +216,8 @@ Private Sub populateTraceabilityInfo(featureTraceabilityInfo() As Variant, pages
     For i = 1 To pages
         With ThisWorkbook.Worksheets("PAGE " & i)
             For j = 0 To UBound(featureTraceabilityInfo, 2)
-                .Range("A" & j + 22).Value = featureTraceabilityInfo(0, j)
-                .Range("C" & j + 22).Value = featureTraceabilityInfo(1, j)
+                .Range("A" & j + 22).Value = featureTraceabilityInfo(0, j) '-> Date
+                .Range("C" & j + 22).Value = featureTraceabilityInfo(1, j) '-> EmployeeID
                 
                 'We don't always get a value for the employeeID. So if the value we found is Null, then
                 'set it to the value of the cell that we found above.
@@ -227,24 +229,18 @@ Private Sub populateTraceabilityInfo(featureTraceabilityInfo() As Variant, pages
                 End If
                 
                 'If we detected a failure, set the background as red to indicate that
-                'we'll use this later to conditionally remove inspections if we don't have ShowAllObservations Toggled
                 If featureTraceabilityInfo(3, j) = "Fail" Then
                     .Range("A" & j + 22 & ":" & "C" & j + 22).Interior.Color = RGB(255, 102, 102)
                     .Range("E" & j + 22 & ":" & "L" & j + 22).Interior.Color = RGB(255, 102, 102)
-                
                 End If
-                
             Next j
         End With
-    
-    
     Next i
     
     Exit Sub
 
 FeatureTraceErr:
     Err.Raise Number:=Err.Number, description:="sub: populateTraceabilityInfo" & vbCrLf & Err.description
-
 
 End Sub
 

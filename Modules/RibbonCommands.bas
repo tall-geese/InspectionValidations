@@ -111,20 +111,14 @@ Public Sub jbEditText_OnChange(ByRef control As Office.IRibbonControl, ByRef Tex
     If Text = vbNullString Then GoTo 10
     
     On Error GoTo 10
-    Call SetJobVariables(jobNum:=jobNumUcase)
-    
-    'TODO: Determine the number of Swiss/CNC operations normally required by the part, set a flag if is a multimachining op Part
-    'Determine if any of our machining operations are missing as a result of outside operations, set a flag once again
-        'Find out, based on the previous data - which of our operations are missing exactly
-        'If we know a level is missing, then we should pass that data later on in thi function when collecting operation-Level
-            'Information like machine, cell. They will need to either fill NA or use another level's information
+    Call SetJobVariables(jobNum:=jobNumUcase) 'If this errors out, just clears everything
     
     partOperations = DatabaseModule.GetPartOperationInfo(jobNumUcase)
-    If ((Not partOperations) = -1) Then GoTo QueryRoutines
+    If ((Not partOperations) = -1) Then GoTo QueryRoutines 'If the part never gets machined inside, dont bother querying for run info
     If UBound(partOperations, 2) > 0 Then multiMachinePart = True
     
     jobOperations = DatabaseModule.GetJobOperationInfo(jobNumUcase)
-    'If there were not job machining ops or less machining ops then we expected
+    'If there are no inside mach ops or there are less then there should be according to the MoM, flag that a stage is missing
     If ((Not jobOperations) = -1) Then
         machineStageMissing = True
         GoTo SkipUbound
@@ -134,7 +128,8 @@ Public Sub jbEditText_OnChange(ByRef control As Office.IRibbonControl, ByRef Tex
 SkipUbound:
     'If ops are missing, we need to determine which ones so we can ignore those respective routines later.
     If machineStageMissing = True Then
-        If (Not Not jobOperations) And (Not Not partOperations) Then 'we have a list of part operations and job operations
+        'If we normally required mach ops for the part and we have some mach ops for this job..
+        If (Not Not jobOperations) And (Not Not partOperations) Then
             For i = 0 To UBound(partOperations, 2)
                 For j = 0 To UBound(jobOperations, 2)
                     If (partOperations(1, i) = jobOperations(4, j)) And (partOperations(2, i) = jobOperations(5, j)) Then
@@ -152,11 +147,8 @@ SkipUbound:
                 End If
 Nexti:
             Next i
-            
-        ElseIf (Not Not jobOperations) And ((Not partOperations) = -1) Then 'This doesnt make sense, we have more machining ops then expected
-            result = MsgBox("There are more machining operations for this job than expected. Cannot process", vbCritical)
-            GoTo 10
-        ElseIf ((Not jobOperations) = -1) And (Not Not partOperations) Then 'We have no machining operations, set the missing machining ops
+        'We have no machining operations for the job, determine which ops are missing
+        ElseIf ((Not jobOperations) = -1) And (Not Not partOperations) Then
             For i = 0 To UBound(partOperations, 2)
                 If (Not missingLevels) = -1 Then
                     ReDim Preserve missingLevels(0)
@@ -166,10 +158,6 @@ Nexti:
                     missingLevels(UBound(missingLevels)) = i
                 End If
             Next i
-        ElseIf ((Not jobOperations) = -1) And ((Not partOperations) = -1) Then  'neither have been initialized, no one should call for
-                                                                            'manufacturing routines anyway, skip ahead
-            'theoretically we could just leav this alone
-            'TODO: maybe we should set machineStageMissing back to False, since really nothing is missing now
         End If
     End If
     
@@ -182,8 +170,8 @@ QueryRoutines:
 
     If ((Not tempRoutineArray) = -1) Then GoTo 20 'We didnt find any routines for the run
     
-    'Pass the results of the temp to the runRoutine List, we're going to add another dimension where we
-        'Keep track of the #ObsFound for each routine and use this later in the UserForm
+    'Pass the results of the temp to the runRoutine List, we're going to add other dimensions where we
+        'Keep track of the #ObsFound, setupType, machine and cell
     ReDim Preserve runRoutineList(5, UBound(tempRoutineArray, 2))
     For i = 0 To UBound(tempRoutineArray, 2)
         runRoutineList(0, i) = tempRoutineArray(0, i)
@@ -202,67 +190,48 @@ QueryRoutines:
         Dim featureCount() As Variant
         featureCount = DatabaseModule.GetFeatureMeasuredValues(jobNum:=jobNumUcase, routine:=routine, _
                                         delimFeatures:=JoinPivotFeatures(features), featureInfo:=features)
-        If ((Not featureCount) = -1) Then
+        If ((Not featureCount) = -1) Then 'If we get returned an empty array, then the value is 0
             runRoutineList(2, i) = 0
         Else
             runRoutineList(2, i) = UBound(featureCount, 2) + 1
         End If
-'        runRoutineList(2, i) = UBound(DatabaseModule.GetFeatureMeasuredValues(jobNum:=jobNumUcase, routine:=routine, _
-'                                        delimFeatures:=JoinPivotFeatures(features), featureInfo:=features), 2) + 1
-        'TODO: Add run mahciningLevel, cell, machine, setup Type, Completed Qty
-        'We should be using the 'FA', 'FI', code in the routine name to determine What opCode we should be searching in
-        'Let another functin handle this and come up with the determined level
-        'Use SD1168 to validate this, FVIS has about 400 parts Less
     Next i
     
-    'TODO: set up an Epicor Read Error
+    On Error GoTo RoutineLevelErr
     For i = 0 To UBound(runRoutineList, 2)
     
         If multiMachinePart And (Not Not jobOperations) Then
-            'Is this the first machining op, the second?, etc
             Dim level As Integer
-            level = GetMachiningLevel(routineName:=runRoutineList(0, i))
+            level = GetMachiningLevel(routineName:=runRoutineList(0, i)) 'Is this the first machining op, the second?, etc
             'Theoretically shouldnt have to check if a op of that level exists, since somebody bothered to create the routine for it
             For j = 0 To UBound(jobOperations, 2)
+                'If OpNum, OpCode of the part machining stage and the job operation, associate Operation attribute with the routine
                 If (partOperations(1, level) = jobOperations(4, j)) And (partOperations(2, level) = jobOperations(5, j)) Then
-'                    runRoutineList(3, i) = jobOperations(4, j) 'ProdQty
                     runRoutineList(3, i) = jobOperations(1, j) 'setupType
                     runRoutineList(4, i) = jobOperations(2, j) 'machine
                     runRoutineList(5, i) = jobOperations(3, j) 'cell
                 End If
             Next j
             
-        ElseIf (Not jobOperations) = -1 Then
-            'The part has machining operations but we did them all outside
-            'So in this situation, we don't have a great place to pull the acceptable quantity to base the AQL off of,
-            'BUT we can try using the MAX() or greatest of the sum of the operations
-            
-'            Dim tempArray() As Variant
-'            tempArray = DatabaseModule.GetGreatestOpQty(jobNumUcase)(1, 0)
-'            runRoutineList(3, i) = DatabaseModule.GetGreatestOpQty(jobNumUcase)(1, 0)
+        ElseIf (Not jobOperations) = -1 Then 'If we didnt make the part inside, then these attributes don't apply
             runRoutineList(3, i) = "None" 'setupType
             runRoutineList(4, i) = "NA" 'machine
             runRoutineList(5, i) = "NA" 'cell
             
         Else
             'The part only has a single machining operation, this is the bread and butter situation
-'            runRoutineList(3, i) = jobOperations(4, 0) 'ProdQty
             runRoutineList(3, i) = jobOperations(1, 0) 'setupType
             runRoutineList(4, i) = jobOperations(2, 0) 'machine
             runRoutineList(5, i) = jobOperations(3, 0) 'cell
         End If
     Next i
     
-    
-    
-    
-    
     'Set our Ribbon Information to the first Routine in our list, invalidate this control later
     rtCombo_TextField = runRoutineList(0, 0)
     lblStatus_Text = runRoutineList(1, 0)
     rtCombo_Enabled = True
 
-    'TODO: we dont have this variable anymore, need to switch on runRoutineList(4,0)
+    'Set our check boxes, displaying the setup information to the operator
     Select Case runRoutineList(3, 0)
         Case "Full"
             chkFull_Pressed = True
@@ -277,14 +246,13 @@ QueryRoutines:
     On Error GoTo ML_RoutineInfo
     Call SetFeatureVariables
     
-'    On Error GoTo 10
 20
     If toggAutoForm_Pressed Then VettingForm.Show
 10
-    'TODO: once again need to resolve what happens in the event of an invalid job num
+    'Still gets called if we have an invalid job, it should clean the page and exit out
     Call SetWorkbookInformation
 
-     'Standard updates that are always applicable
+     'Standard updates that are always applicable, refresh the ribbon controls
     cusRibbon.InvalidateControl "chkFull"
     cusRibbon.InvalidateControl "chkMini"
     cusRibbon.InvalidateControl "chkNone"
@@ -294,6 +262,10 @@ QueryRoutines:
    
 
     Exit Sub
+    
+RoutineLevelErr:
+    MsgBox Prompt:="Error when attmepting to associate the machining information with a routine: " & vbCrLf & runRoutineList(0, i) & vbCrLf & Err.description, Buttons:=vbExclamation
+    GoTo 10
 
 ML_QueryErr:
     MsgBox Prompt:="Error when querying for information: " & vbCrLf & Err.description, Buttons:=vbExclamation
@@ -341,7 +313,6 @@ Public Sub rtCombo_OnChange(ByRef control As Office.IRibbonControl, ByRef Text A
          'Set new active routine
         lblStatus_Text = runRoutineList(1, i)
         rtCombo_TextField = Text
-        
 
         'Get new feature data with new active routine
         Call SetFeatureVariables
@@ -376,7 +347,7 @@ Public Sub rtCombo_OnGetItemID(ByRef control As Office.IRibbonControl, ByRef ind
 End Sub
 
 Public Sub rtCombo_OnGetText(ByRef control As Office.IRibbonControl, ByRef Text As Variant)
-    'Believe it or not, this is the proper way to check if a Variant Array has been initialized
+    'when we don't have any routines, use a placeholder string
     If Not Not runRoutineList Then
         Text = rtCombo_TextField
     Else
@@ -514,17 +485,19 @@ Function JoinPivotFeatures(featureHeaderInfo() As Variant) As String
 End Function
 
 Public Function GetMachiningLevel(routineName As Variant) As Integer
-     'TODO: what do we do if a part never has partOperations becuase its is always manufactured outside
     'set the maximum level
     Dim maxLevel As Integer
     maxLevel = UBound(partOperations, 2)
     Dim routineSub As String
     
-    'TODO: set error handling here in case the routineName does not make sense
-    routineSub = Split(routineName, partNum & "_" & rev & "_")(1)
+    On Error GoTo RoutineParsingErr
+    routineSub = Split(routineName, partNum & "_" & rev & "_")(1) 'Get the text appearing after   Part_Rev_"
     
     If (InStr(routineSub, "FA") > 0) Or (InStr(routineSub, "IP") > 0) Then
         If (Len(routineSub) - Len(Replace(routineSub, "_", "")) >= 2) Or (IsNumeric(Right(routineSub, 1))) Then
+            'If the routine has more than a single _ such as FA_FIRST_MILL and only two machining operations then its fair to assume
+            'that its the ladder. Otherwise if it is numerically defined like FA_FIRST3, then we interperet the level based off the
+            'numeric character at the end
             If maxLevel = 1 Then
                 GetMachiningLevel = 1
             ElseIf IsNumeric(Right(routineSub, 1)) Then
@@ -536,17 +509,24 @@ Public Function GetMachiningLevel(routineName As Variant) As Integer
                     'Return an error here, this should be impossible
                 End If
             Else
-                'Return an error, this naming convention is not allowed
+                result = MsgBox("Naming convention for " & routineName & " is not allowed for this many machining operations", vbCritical)
+                GoTo RoutineParsingErr
             End If
         Else
             GetMachiningLevel = 0
         End If
     ElseIf InStr(routineSub, "FI") > 0 Then
+        'If it is an FI routine we give it the maximum level. It doesn't really matter as we see in Vetting Form, but it makes the most sense
         GetMachiningLevel = maxLevel
     Else
-        'Return an error, we can't parse the abbreviation for this routineName
+        GoTo RoutineParsingErr
     End If
-
+    
+    Exit Function
+    
+RoutineParsingErr:
+    Err.Raise Number:=vbObjectError + 2500, description:="Couldn't figure out, what machining operation " & routineNmae & _
+        vbCrLf & "should belong to. Does not follow correct naming conventions"
 End Function
 
 Private Sub SetFeatureVariables()
@@ -600,14 +580,16 @@ Private Sub ClearFeatureVariables(Optional preserveRoutines As Boolean)
     partNum = vbNullString
     rev = vbNullString
     customer = vbNullString
-    machine = vbNullString
-    cell = vbNullString
     partDesc = vbNullString
+    multiMachinePart = False
+    machineStageMissing = False
     
     'Keep routines for ComboBox
     Erase partRoutineList
     Erase runRoutineList
-
+    Erase partOperations
+    Erase jobOperations
+    Erase missingLevels
 
 End Sub
 
@@ -615,14 +597,9 @@ Private Sub SetJobVariables(jobNum As String)
     On Error GoTo jbInfoErr
     Dim jobInfo() As Variant
     
-    'TODO: somwhere here we need to check the size of the array (number of SWiss and/or CNC ops)
-    'and possible need to check the operation numbers and maybe even op codes (need to add all this into the SQL query)
-    
     jobInfo = DatabaseModule.GetJobInformation(JobID:=jobNum)
     
-    
     'Add the components of the array to our variables
-    
     partNum = jobInfo(2, 0)
     rev = jobInfo(3, 0)
     partDesc = jobInfo(5, 0)
@@ -654,6 +631,7 @@ Private Sub SetWorkbookInformation()
         index = GetRoutineIndex(rtCombo_TextField)
         machine = runRoutineList(4, index)
     Else
+        'If our runRoutineList is empty, then ThisWorkbook will end up just running the cleanup anyway
         machine = ""
     End If
     
@@ -670,6 +648,8 @@ wbErr:
 End Sub
 
 Public Function GetRoutineIndex(routineName As String) As Integer
+    'If we dont' have a runRoutineList or didnt find a routine of the given name, then return 99 as the index which we will
+    'Later turn into a flag to in VettingForm when it is trying to figure out which partRoutines, not runRoutines, apply.
     If ((Not runRoutineList) = -1) Then GoTo 10
 
     For i = 0 To UBound(runRoutineList, 2)

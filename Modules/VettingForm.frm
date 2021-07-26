@@ -48,7 +48,7 @@ Private Sub UserForm_Initialize()
     'Also set the required observations for the routine
     For i = 0 To UBound(RibbonCommands.partRoutineList, 2)
         With Me.RoutineFrame.Controls(i)
-            .Caption = RibbonCommands.partRoutineList(0, i)
+            .Caption = RibbonCommands.partRoutineList(0, i) 'set all of the routines that COULD be applicable
             .ForeColor = RGB(128, 128, 128)
             .Visible = True
         End With
@@ -66,8 +66,8 @@ Private Sub UserForm_Initialize()
             Dim routineType As String
                         
             fullRoutine = RibbonCommands.partRoutineList(0, i)
-            routineType = Split(RibbonCommands.partRoutineList(0, i), RibbonCommands.partNum & "_" & RibbonCommands.rev & "_")(1)
-            routineIndex = RibbonCommands.GetRoutineIndex(fullRoutine)
+            routineType = Split(RibbonCommands.partRoutineList(0, i), RibbonCommands.partNum & "_" & RibbonCommands.rev & "_")(1) 'Get "FA_FIRST" for example
+            routineIndex = RibbonCommands.GetRoutineIndex(fullRoutine) 'If we didnt create a routine of that name, then this returns 99
             If routineIndex < 99 Then
                 routineCreated = True
             Else
@@ -76,22 +76,23 @@ Private Sub UserForm_Initialize()
             On Error GoTo RoutineSwitchErr
             
             
-            'Given routine of a name like "DRW-00717-01_RAG_IP_SYLVAC", we're trying to grab the "IP_SYLVAC"
+            'FA and IP routines (machining)
             If (InStr(routineType, "FA_") > 0) Or (InStr(routineType, "IP_") > 0) Then
                 Dim level As Integer
                 Dim setupType As String
-                If (Not routineCreated) Then
+                If (Not routineCreated) Then 'If the routine wasnt created
                     level = GetMachiningLevel(fullRoutine)
-                    If (RibbonCommands.machineStageMissing And Not Not (RibbonCommands.missingLevels)) Then 'IsNumeric(Application.Match(level, RibbonCommands.missingLevels, 0))) Then 'if its in our list of likely missing mach operations
-                        If IsNumeric(Application.Match(level, RibbonCommands.missingLevels, 0)) Then
+                    If (RibbonCommands.machineStageMissing And Not Not (RibbonCommands.missingLevels)) Then 'Becuase we have missing machining operations
+                        If IsNumeric(Application.Match(level, RibbonCommands.missingLevels, 0)) Then 'Like the one this routine would have belonged to
                             .Visible = False
                             .Caption = "0"
-                            GoTo NextObsReq
+                            GoTo NextObsReq 'Set no requirement, go to the next one
                         Else
                             GoTo ShouldExist
                         End If
                     Else
 ShouldExist:
+                       'Someone maybe should have created this routine but didnt, we wont know for sure until we have the setup type
                        For j = 0 To UBound(jobOperations, 2)
                         If (partOperations(1, level) = jobOperations(4, j)) And (partOperations(2, level) = jobOperations(5, j)) Then
                             'If the Op# and Op Codes Match, grab the setup type from the matched level
@@ -101,7 +102,7 @@ ShouldExist:
                     Next j
                     End If
                 Else
-                    setupType = RibbonCommands.runRoutineList(3, routineIndex)
+                    setupType = RibbonCommands.runRoutineList(3, routineIndex) 'If the routine does exist, just grab the setup type info
                 End If
 10
                 If (InStr(routineType, "FIRST") > 0) Then
@@ -165,6 +166,7 @@ ShouldExist:
                     .Caption = "1"
                     .Visible = True
                 ElseIf (InStr(routineType, "FI_DIM") > 0) Then
+                    'FI_DIMs will usually need AQL requirements but if all features are attribute then its possible we only need one
                     If DatabaseModule.IsAllAttribrute(routine:=RibbonCommands.partRoutineList(0, i)) Then
                         .Caption = "1"
                     Else
@@ -180,7 +182,6 @@ ShouldExist:
                 End If
             Else
                 GoTo RoutineSwitchErr
-            
             End If
             
 NextObsReq:
@@ -254,10 +255,10 @@ End Sub
 
 
 Private Sub EmailButton_Click()
-    'TODO: depending on the routines that failed, we could have multiple machines and cell that we need to pass to CreateEmail now
     Dim cells() As Variant
     Dim machines() As Variant
     
+    'If there are no machining operations required, then we dont need to query for a machine name
     If ((Not RibbonCommands.jobOperations) = -1) Then
         ReDim Preserve machines(0)
         machines(0) = "[Outsourced Machining]"
@@ -268,7 +269,7 @@ Private Sub EmailButton_Click()
         Dim level As Integer
         level = RibbonCommands.GetMachiningLevel(failedRoutines(0, i))
         For j = 0 To UBound(RibbonCommands.jobOperations, 2)
-            'TODOL what to do here if a routine is a failure becuase noeone ever created it
+            'Determine what machining op the routine should belong to, and pull its machine and cell data
             If ((RibbonCommands.partOperations(1, level) = RibbonCommands.jobOperations(4, j)) _
                 And RibbonCommands.partOperations(2, level) = RibbonCommands.jobOperations(5, j)) Then
                     Dim machine As String
@@ -276,6 +277,7 @@ Private Sub EmailButton_Click()
                     machine = RibbonCommands.jobOperations(2, j)
                     cell = RibbonCommands.jobOperations(3, j)
                     
+                    'Add to our list of machines and cells responsible for the failures
                     If ((Not cells) = -1 And (Not machines) = -1) Then
                         ReDim Preserve cells(0)
                         ReDim Preserve machines(0)
@@ -294,8 +296,25 @@ Private Sub EmailButton_Click()
                     GoTo Nexti
             End If
         Next j
-      'If we made it here then we either have no jobOperations or our routine's Level is higher then we machined here (Like FI_ routines and skipping 1)
-      'TODO: Do we need to error handle here?
+      'If we made it here then our routine's Level is higher then we machined
+      'In theory the only reason this should ever occur is becuase we have a failed FI routine for a multiple operation part and we
+        'outsourced the final machining operation
+        If ((Not cells) = -1 And (Not machines) = -1) Then
+            ReDim Preserve cells(0)
+            ReDim Preserve machines(0)
+            cells(0) = "QC"
+            machines(0) = "QC"
+        Else
+            If Not (IsNumeric(Application.Match("QC", cells, 0))) Then
+                ReDim Preserve cells(UBound(cells) + 1)
+                cells(UBound(cells)) = "QC"
+            End If
+            If Not (IsNumeric(Application.Match("QC", machines, 0))) Then
+                ReDim Preserve machines(UBound(machines) + 1)
+                machines(UBound(machines)) = "QC"
+            End If
+        End If
+        
 Nexti:
     Next i
 
@@ -321,10 +340,6 @@ Private Sub PrintButton_Click()
 End Sub
 
 
-Private Sub UserForm_Activate()
-'    MsgBox (Me.Controls("RoutineFrame").Routine1.Caption)
-End Sub
-
 
 Private Sub ChangePrinterButton_Click()
     If (Application.Dialogs(xlDialogPrinterSetup).Show) Then
@@ -333,6 +348,7 @@ Private Sub ChangePrinterButton_Click()
 End Sub
 
 Private Sub ForcePrintButton_Click()
+    'Override locking out our users from printing when routines fail
     Dim result As String
     result = Me.PasswordTextBox.Text
     
@@ -369,7 +385,6 @@ Private Sub VetInspections()
                 Call setFailure(location:=i, routine:=Me.RoutineFrame.Controls(i).Caption)
                 GoTo NextIter
             End If
-        
         'If we have Req Qty but didn't find results for inspected Qty
         ElseIf Me.ObsReq.Controls(i).Visible = True And Me.ObsFound.Controls(i).Visible = False Then
             Call setFailure(location:=i, routine:=Me.RoutineFrame.Controls(i).Caption)
