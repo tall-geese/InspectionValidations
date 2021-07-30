@@ -34,6 +34,10 @@ Dim aqlQuantity As String
 
 
 
+Private Sub Routine1_Click()
+
+End Sub
+
 '****************************************************************************************
 '               UserForm Callbacks
 '****************************************************************************************
@@ -392,6 +396,10 @@ Private Sub VetInspections()
         'If we have a routine but no Req Qty because the setup type doesn't require it, not considered a failure
         ElseIf (Me.RoutineFrame.Controls(i).Visible = True And Me.ObsReq.Controls(i).Visible = False) Then
             Call hideResult(location:=i)
+            'If we have a routine created that wasn't needed, strikethrough the text
+            If Me.ObsReq.Controls(i).Visible = False And Me.ObsFound.Controls(i).Visible = True Then
+                Me.RoutineFrame.Controls(i).Font.Strikethrough = True
+            End If
             GoTo NextIter
         'If its a hidden control
         ElseIf Me.RoutineFrame.Controls(i).Visible = False Then
