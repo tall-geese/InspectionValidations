@@ -28,6 +28,7 @@ Attribute VB_Exposed = False
 
 Dim cellLeadAlertReq As Boolean
 Dim qcManagerAlertReq As Boolean
+Dim pmodManagerAlertReq As Boolean
 Dim failedRoutines() As Variant
 Dim aqlQuantity As String
 
@@ -227,7 +228,7 @@ NextControl:
     
     Call VetInspections
     
-    If (cellLeadAlertReq Or qcManagerAlertReq) Then
+    If (cellLeadAlertReq Or qcManagerAlertReq Or pmodManagerAlertReq) Then
         Me.PrintButton.Enabled = False
         Me.EmailButton.Enabled = True
         Me.EmailButton.SetFocus
@@ -252,7 +253,7 @@ UniqueRoutineErr:
    GoTo NextControl
 
 RoutineSwitchErr:
-       result = MsgBox("Error when determining observations needed for : " & RibbonCommands.runRoutineList(0, i) & vbCrLf & _
+       result = MsgBox("Error when determining observations needed for : " & RibbonCommands.partRoutineList(0, i) & vbCrLf & _
                  "UserForm Init" & vbCrLf & Err.description, vbCritical)
 
 End Sub
@@ -333,7 +334,7 @@ Nexti:
         If i <> UBound(machines) Then machineList = machineList & ","
     Next i
         
-    Call ExcelHelpers.CreateEmail(qcManager:=qcManagerAlertReq, cellLead:=cellLeadAlertReq, cellLeadEmail:=cellLeadEmail, _
+    Call ExcelHelpers.CreateEmail(qcManager:=qcManagerAlertReq, pmodManager:=pmodManagerAlertReq, cellLead:=cellLeadAlertReq, cellLeadEmail:=cellLeadEmail, _
                                     jobNum:=RibbonCommands.jobNumUcase, machine:=machineList, failInfo:=failedRoutines)
 
 End Sub
@@ -435,6 +436,8 @@ Private Sub setFailure(location As Variant, routine As String)
     routineSuffix = Split(routine, RibbonCommands.partNum & "_" & RibbonCommands.rev & "_")(1)
     If (InStr(routineSuffix, "FI") > 0) Then
         qcManagerAlertReq = True
+    ElseIf (InStr(routineSuffix, "IP_ASSY") > 0) Then
+        pmodManagerAlertReq = True
     Else
         cellLeadAlertReq = True
     End If

@@ -77,7 +77,7 @@ Public Function GetAQL(customer As String, drawNum As String, ProdQty As Integer
     End Select
     
     With aqlWB.Worksheets("AQL")
-        col = .Range("B1:J1").Find(aqlVal).column
+        col = Application.WorksheetFunction.Match(CDbl(aqlVal), .Range("A1:J1"), 0)
         reqQty = .Range(GetAddress(col) & row).Value
     End With
     
@@ -115,7 +115,7 @@ WbReadErr:
 End Function
 
 
-Public Sub CreateEmail(qcManager As Boolean, cellLead As Boolean, cellLeadEmail As String, jobNum As String, machine As String, failInfo() As Variant)
+Public Sub CreateEmail(qcManager As Boolean, cellLead As Boolean, pmodManager As Boolean, cellLeadEmail As String, jobNum As String, machine As String, failInfo() As Variant)
     Dim oApp As Outlook.Application
     Dim myMail As Outlook.MailItem
     Dim HTMLContent As String
@@ -130,6 +130,9 @@ Public Sub CreateEmail(qcManager As Boolean, cellLead As Boolean, cellLeadEmail 
         End If
         If qcManager Then
             .To = .To & ";" & DataSources.QCMAN_TO
+        End If
+        If pmodManager Then
+            .To = .To & ";" & DataSources.PMODMAN_TO
         End If
         
         .Subject = Replace(DataSources.EMAIL_SUBJECT, "{Job}", jobNum)

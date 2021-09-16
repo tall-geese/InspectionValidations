@@ -494,6 +494,7 @@ Public Function GetMachiningLevel(routineName As Variant) As Integer
     routineSub = Split(routineName, partNum & "_" & rev & "_")(1) 'Get the text appearing after   Part_Rev_"
     
     If (InStr(routineSub, "FA") > 0) Or (InStr(routineSub, "IP") > 0) Then
+        If (InStr(routineSub, "IP_ASSY") > 0) Then GoTo 10
         If (Len(routineSub) - Len(Replace(routineSub, "_", "")) >= 2) Or (IsNumeric(Right(routineSub, 1))) Then
             'If the routine has more than a single _ such as FA_FIRST_MILL and only two machining operations then its fair to assume
             'that its the ladder. Otherwise if it is numerically defined like FA_FIRST3, then we interperet the level based off the
@@ -517,6 +518,8 @@ Public Function GetMachiningLevel(routineName As Variant) As Integer
         End If
     ElseIf InStr(routineSub, "FI") > 0 Then
         'If it is an FI routine we give it the maximum level. It doesn't really matter as we see in Vetting Form, but it makes the most sense
+        'IP_ASSY will also be redirected here
+10
         GetMachiningLevel = maxLevel
     Else
         GoTo RoutineParsingErr

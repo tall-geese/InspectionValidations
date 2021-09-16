@@ -101,7 +101,7 @@ Private Sub populateHeaderFeatureInfo(featureInfo() As Variant)
                 Dim ballHeader As String
                 ballHeader = featureInfo(0, i)
                 'If its a numeric balloon number, we should re-format it to be human-readable
-                If (Mid(ballHeader, 2, 1) = "_") Then
+                If (Mid(ballHeader, 2, 1) = "_") And IsNumeric(Right(ballHeader, 1)) Then
                     If (CInt(Right(ballHeader, 2))) > 0 Then
                         Dim featureNum As String
                         featureNum = Split(ballHeader, "_")(1)
