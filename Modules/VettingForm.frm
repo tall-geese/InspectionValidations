@@ -170,7 +170,7 @@ ShouldExist:
                 If (InStr(routineType, "FI_VIS") > 0) Then
                     .Caption = "1"
                     .Visible = True
-                ElseIf (InStr(routineType, "FI_DIM") > 0) Then
+                ElseIf (InStr(routineType, "FI_DIM") > 0) Or (InStr(routineType, "FI_OP") > 0) Then
                     'FI_DIMs will usually need AQL requirements but if all features are attribute then its possible we only need one
                     If DatabaseModule.IsAllAttribrute(routine:=RibbonCommands.partRoutineList(0, i)) Then
                         .Caption = "1"
@@ -179,10 +179,10 @@ ShouldExist:
                                             ProdQty:=RibbonCommands.ProdQty)
                     End If
                     .Visible = True
-                ElseIf (InStr(routineType, "FI_OP") > 0) Then
-                    .Caption = GetAQL(customer:=RibbonCommands.customer, drawNum:=RibbonCommands.drawNum, _
-                                            ProdQty:=RibbonCommands.ProdQty)
-                    .Visible = True
+'                ElseIf (InStr(routineType, "FI_OP") > 0) Then
+'                    .Caption = GetAQL(customer:=RibbonCommands.customer, drawNum:=RibbonCommands.drawNum, _
+'                                            ProdQty:=RibbonCommands.ProdQty)
+'                    .Visible = True
                 Else
                 End If
             Else

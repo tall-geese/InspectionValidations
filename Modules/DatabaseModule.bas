@@ -153,7 +153,7 @@ End Sub
 Function GetJobInformation(JobID As String) As Variant()
     
     Set fso = New FileSystemObject
-    params = Array("jh.JobNum," & JobID)
+    params = Array("jo.JobNum," & JobID, "jh.JobNum," & JobID)
     query = fso.OpenTextFile(DataSources.QUERIES_PATH & "EpicorJobInfo.sql").ReadAll
     
     
