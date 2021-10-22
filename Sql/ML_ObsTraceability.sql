@@ -10,13 +10,13 @@ FROM (SELECT MIN(src.ObsTimestamp)[TimeStamp], MAX(src.ItemName)[EmployeeID], sr
 					WHEN frd.Value IS NULL THEN 'Fail'
 					ELSE 'Pass'
 				END AS 'Result'
-			FROM MeasurLink7.dbo.FeatureRun fr 
-			INNER JOIN MeasurLink7.dbo.Feature f ON F.FeatureID = fr.FeatureID 
-			INNER JOIN MeasurLink7.dbo.Run r ON fr.RunID = r.RunID 
-			INNER JOIN MeasurLink7.dbo.Routine rt ON rt.RoutineID = r.RoutineID 
-			INNER JOIN MeasurLink7.dbo.FeatureRunData frd ON fr.RunID = frd.RunID AND fr.FeatureID=frd.FeatureID
-			LEFT OUTER JOIN MeasurLink7.dbo.FeatureProperties fpr ON f.FeatureID = fpr.FeatureID AND f.FeaturePropID = fpr.FeaturePropID 
-			LEFT OUTER JOIN MeasurLink7.dbo.DataTraceability dta ON r.RunID = dta.RunID AND f.FeatureID = dta.FeatureID AND frd.ObsID = dta.StartObsID 
+			FROM dbo.FeatureRun fr 
+			INNER JOIN dbo.Feature f ON F.FeatureID = fr.FeatureID 
+			INNER JOIN dbo.Run r ON fr.RunID = r.RunID 
+			INNER JOIN dbo.Routine rt ON rt.RoutineID = r.RoutineID 
+			INNER JOIN dbo.FeatureRunData frd ON fr.RunID = frd.RunID AND fr.FeatureID=frd.FeatureID
+			LEFT OUTER JOIN dbo.FeatureProperties fpr ON f.FeatureID = fpr.FeatureID AND f.FeaturePropID = fpr.FeaturePropID 
+			LEFT OUTER JOIN dbo.DataTraceability dta ON r.RunID = dta.RunID AND f.FeatureID = dta.FeatureID AND frd.ObsID = dta.StartObsID 
 			WHERE r.RunName = ? AND rt.RoutineName = ?
 			UNION ALL
 			SELECT  afrd.ObsTimestamp, dta.ItemName, afrd.ObsID, afrd.DefectCount,
@@ -25,12 +25,12 @@ FROM (SELECT MIN(src.ObsTimestamp)[TimeStamp], MAX(src.ItemName)[EmployeeID], sr
 					WHEN afrd.DefectCount IS NULL THEN 'Fail'
 					ELSE 'Pass'
 				END AS 'Result'
-			FROM MeasurLink7.dbo.FeatureRun fr 
-			INNER JOIN MeasurLink7.dbo.Feature f ON F.FeatureID = fr.FeatureID 
-			INNER JOIN MeasurLink7.dbo.Run r ON fr.RunID = r.RunID 
-			INNER JOIN MeasurLink7.dbo.Routine rt ON rt.RoutineID = r.RoutineID 
-			INNER JOIN MeasurLink7.dbo.AttFeatureRunData afrd ON fr.RunID = afrd.RunID AND fr.FeatureID = afrd.FeatureID
-			LEFT OUTER JOIN MeasurLink7.dbo.DataTraceability dta ON r.RunID = dta.RunID AND f.FeatureID = dta.FeatureID AND afrd.ObsID = dta.StartObsID 
+			FROM dbo.FeatureRun fr 
+			INNER JOIN dbo.Feature f ON F.FeatureID = fr.FeatureID 
+			INNER JOIN dbo.Run r ON fr.RunID = r.RunID 
+			INNER JOIN dbo.Routine rt ON rt.RoutineID = r.RoutineID 
+			INNER JOIN dbo.AttFeatureRunData afrd ON fr.RunID = afrd.RunID AND fr.FeatureID = afrd.FeatureID
+			LEFT OUTER JOIN dbo.DataTraceability dta ON r.RunID = dta.RunID AND f.FeatureID = dta.FeatureID AND afrd.ObsID = dta.StartObsID 
 			WHERE r.RunName = ? AND rt.RoutineName = ?) src
 	GROUP BY src.ObsID) src2
 WHERE src2.Result = 'Pass'
@@ -46,13 +46,13 @@ FROM (SELECT frd.ObsTimestamp, dta.ItemName, frd.ObsID, frd.Value,
 				WHEN frd.Value IS NULL THEN 'Fail'
 				ELSE 'Pass'
 			END AS 'Result'
-		FROM MeasurLink7.dbo.FeatureRun fr 
-		INNER JOIN MeasurLink7.dbo.Feature f ON F.FeatureID = fr.FeatureID 
-		INNER JOIN MeasurLink7.dbo.Run r ON fr.RunID = r.RunID 
-		INNER JOIN MeasurLink7.dbo.Routine rt ON rt.RoutineID = r.RoutineID 
-		INNER JOIN MeasurLink7.dbo.FeatureRunData frd ON fr.RunID = frd.RunID AND fr.FeatureID=frd.FeatureID
-		LEFT OUTER JOIN MeasurLink7.dbo.FeatureProperties fpr ON f.FeatureID = fpr.FeatureID AND f.FeaturePropID = fpr.FeaturePropID 
-		LEFT OUTER JOIN MeasurLink7.dbo.DataTraceability dta ON r.RunID = dta.RunID AND f.FeatureID = dta.FeatureID AND frd.ObsID = dta.StartObsID 
+		FROM dbo.FeatureRun fr 
+		INNER JOIN dbo.Feature f ON F.FeatureID = fr.FeatureID 
+		INNER JOIN dbo.Run r ON fr.RunID = r.RunID 
+		INNER JOIN dbo.Routine rt ON rt.RoutineID = r.RoutineID 
+		INNER JOIN dbo.FeatureRunData frd ON fr.RunID = frd.RunID AND fr.FeatureID=frd.FeatureID
+		LEFT OUTER JOIN dbo.FeatureProperties fpr ON f.FeatureID = fpr.FeatureID AND f.FeaturePropID = fpr.FeaturePropID 
+		LEFT OUTER JOIN dbo.DataTraceability dta ON r.RunID = dta.RunID AND f.FeatureID = dta.FeatureID AND frd.ObsID = dta.StartObsID 
 		WHERE r.RunName = ? AND rt.RoutineName = ?
 		UNION ALL
 		SELECT  afrd.ObsTimestamp, dta.ItemName, afrd.ObsID, afrd.DefectCount,
@@ -61,12 +61,12 @@ FROM (SELECT frd.ObsTimestamp, dta.ItemName, frd.ObsID, frd.Value,
 				WHEN afrd.DefectCount IS NULL THEN 'Fail'
 				ELSE 'Pass'
 			END AS 'Result'
-		FROM MeasurLink7.dbo.FeatureRun fr 
-		INNER JOIN MeasurLink7.dbo.Feature f ON F.FeatureID = fr.FeatureID 
-		INNER JOIN MeasurLink7.dbo.Run r ON fr.RunID = r.RunID 
-		INNER JOIN MeasurLink7.dbo.Routine rt ON rt.RoutineID = r.RoutineID 
-		INNER JOIN MeasurLink7.dbo.AttFeatureRunData afrd ON fr.RunID = afrd.RunID AND fr.FeatureID = afrd.FeatureID
-		LEFT OUTER JOIN MeasurLink7.dbo.DataTraceability dta ON r.RunID = dta.RunID AND f.FeatureID = dta.FeatureID AND afrd.ObsID = dta.StartObsID 
+		FROM dbo.FeatureRun fr 
+		INNER JOIN dbo.Feature f ON F.FeatureID = fr.FeatureID 
+		INNER JOIN dbo.Run r ON fr.RunID = r.RunID 
+		INNER JOIN dbo.Routine rt ON rt.RoutineID = r.RoutineID 
+		INNER JOIN dbo.AttFeatureRunData afrd ON fr.RunID = afrd.RunID AND fr.FeatureID = afrd.FeatureID
+		LEFT OUTER JOIN dbo.DataTraceability dta ON r.RunID = dta.RunID AND f.FeatureID = dta.FeatureID AND afrd.ObsID = dta.StartObsID 
 		WHERE r.RunName = ? AND rt.RoutineName = ?) src
 GROUP BY src.ObsID
 ORDER BY src.ObsID

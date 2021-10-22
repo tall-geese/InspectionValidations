@@ -24,7 +24,7 @@ Attribute VB_Exposed = False
 '*************************************************************************************************
 
 
-
+Option Compare Text
 
 Dim cellLeadAlertReq As Boolean
 Dim qcManagerAlertReq As Boolean

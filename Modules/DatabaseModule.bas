@@ -13,6 +13,7 @@ Attribute VB_Name = "DatabaseModule"
 '
 '*************************************************************************************************
 
+Option Compare Text
 
 Private E10DataBaseConnection As ADODB.Connection
 Private ML7DataBaseConnection As ADODB.Connection
@@ -263,7 +264,12 @@ Function GetFeatureHeaderInfo(jobNum As String, routine As String) As Variant()
     Exit Function
     
 FeatureHeaderErr:
-    Err.Raise Number:=Err.Number, description:="Func: ML7-GetFeatureHeaderInfo" & vbCrLf & Err.description
+    If Err.Number = vbObjectError + 2000 Then
+        Err.Raise Number:=Err.Number, description:="Func: ML7-GetFeatureHeaderInfo" & vbCrLf & Err.description & vbCrLf _
+                & "There may not be GaugeID's entered for " & routine
+    Else
+        Err.Raise Number:=Err.Number, description:="Func: ML7-GetFeatureHeaderInfo" & vbCrLf & Err.description
+    End If
 End Function
 
     'Get observation values, filter out failures
@@ -462,10 +468,16 @@ Function GetCustomerName(jobNum As String) As String
 
     'If our job is an inventory job like 'NVxxx' then, we can just search by the first two characters
     If Len(jobNum) > 2 And Not IsNumeric(Left(jobNum, 1)) And Not IsNumeric(Mid(jobNum, 2, 1)) Then
-        searchParam = Left(jobNum, 2)
-        GoTo 20
+        If Left(jobNum, 2) = "ME" Or Left(jobNum, 2) = "QA" Then
+            GoTo 10
+        Else
+            searchParam = Left(jobNum, 2)
+            GoTo 20
+        End If
+        
     End If
-
+    
+10
     'Otherwise use the incorrect "customer" name they put in the project database
     jobInfo = GetJobInformation(JobID:=jobNum)
     searchParam = jobInfo(4, 0)

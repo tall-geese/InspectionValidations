@@ -11,20 +11,20 @@ SELECT Pvt.*
 		        WHEN frd.Value IS NULL THEN 99.998
 		        ELSE frd.Value
 	    	END AS 'Value'
-			FROM MeasurLink7.dbo.FeatureRun fr 
-			INNER JOIN MeasurLink7.dbo.Feature f ON F.FeatureID = fr.FeatureID 
-			INNER JOIN MeasurLink7.dbo.Run r ON fr.RunID = r.RunID 
-			INNER JOIN MeasurLink7.dbo.Routine rt ON rt.RoutineID = r.RoutineID 
-			INNER JOIN MeasurLink7.dbo.FeatureRunData frd ON fr.RunID = frd.RunID AND fr.FeatureID=frd.FeatureID 
-			INNER JOIN MeasurLink7.dbo.FeatureProperties frp ON f.FeatureID = frp.FeatureID AND f.FeaturePropID = frp.FeaturePropID 
+			FROM dbo.FeatureRun fr 
+			INNER JOIN dbo.Feature f ON F.FeatureID = fr.FeatureID 
+			INNER JOIN dbo.Run r ON fr.RunID = r.RunID 
+			INNER JOIN dbo.Routine rt ON rt.RoutineID = r.RoutineID 
+			INNER JOIN dbo.FeatureRunData frd ON fr.RunID = frd.RunID AND fr.FeatureID=frd.FeatureID 
+			INNER JOIN dbo.FeatureProperties frp ON f.FeatureID = frp.FeatureID AND f.FeaturePropID = frp.FeaturePropID 
 			WHERE r.RunName = ? AND rt.RoutineName = ?
 			UNION ALL
 			SELECT f.FeatureName, afrd.ObsID, COALESCE(afrd.DefectCount,1)[Value]
-			FROM MeasurLink7.dbo.FeatureRun fr 
-			INNER JOIN MeasurLink7.dbo.Feature f ON F.FeatureID = fr.FeatureID 
-			INNER JOIN MeasurLink7.dbo.Run r ON fr.RunID = r.RunID 
-			INNER JOIN MeasurLink7.dbo.Routine rt ON rt.RoutineID = r.RoutineID 
-			INNER JOIN MeasurLink7.dbo.AttFeatureRunData afrd ON fr.RunID = afrd.RunID AND fr.FeatureID = afrd.FeatureID 
+			FROM dbo.FeatureRun fr 
+			INNER JOIN dbo.Feature f ON F.FeatureID = fr.FeatureID 
+			INNER JOIN dbo.Run r ON fr.RunID = r.RunID 
+			INNER JOIN dbo.Routine rt ON rt.RoutineID = r.RoutineID 
+			INNER JOIN dbo.AttFeatureRunData afrd ON fr.RunID = afrd.RunID AND fr.FeatureID = afrd.FeatureID 
 			WHERE r.RunName = ? AND rt.RoutineName = ?) src) src2
 	PIVOT (
 		SUM(Value)
@@ -36,19 +36,19 @@ WHERE ;
 	-- 'ShowAllObservations' Toggle button is pressed
 SELECT Pvt.*
 	FROM (SELECT f.FeatureName,  frd.ObsID, frd.Value 
-		FROM MeasurLink7.dbo.FeatureRun fr 
-		INNER JOIN MeasurLink7.dbo.Feature f ON F.FeatureID = fr.FeatureID 
-		INNER JOIN MeasurLink7.dbo.Run r ON fr.RunID = r.RunID 
-		INNER JOIN MeasurLink7.dbo.Routine rt ON rt.RoutineID = r.RoutineID 
-		INNER JOIN MeasurLink7.dbo.FeatureRunData frd ON fr.RunID = frd.RunID AND fr.FeatureID=frd.FeatureID 
+		FROM dbo.FeatureRun fr 
+		INNER JOIN dbo.Feature f ON F.FeatureID = fr.FeatureID 
+		INNER JOIN dbo.Run r ON fr.RunID = r.RunID 
+		INNER JOIN dbo.Routine rt ON rt.RoutineID = r.RoutineID 
+		INNER JOIN dbo.FeatureRunData frd ON fr.RunID = frd.RunID AND fr.FeatureID=frd.FeatureID 
 		WHERE r.RunName = ? AND rt.RoutineName = ?
 		UNION ALL
 		SELECT f.FeatureName, afrd.ObsID, afrd.DefectCount 
-		FROM MeasurLink7.dbo.FeatureRun fr 
-		INNER JOIN MeasurLink7.dbo.Feature f ON F.FeatureID = fr.FeatureID 
-		INNER JOIN MeasurLink7.dbo.Run r ON fr.RunID = r.RunID 
-		INNER JOIN MeasurLink7.dbo.Routine rt ON rt.RoutineID = r.RoutineID 
-		INNER JOIN MeasurLink7.dbo.AttFeatureRunData afrd ON fr.RunID = afrd.RunID AND fr.FeatureID = afrd.FeatureID 
+		FROM dbo.FeatureRun fr 
+		INNER JOIN dbo.Feature f ON F.FeatureID = fr.FeatureID 
+		INNER JOIN dbo.Run r ON fr.RunID = r.RunID 
+		INNER JOIN dbo.Routine rt ON rt.RoutineID = r.RoutineID 
+		INNER JOIN dbo.AttFeatureRunData afrd ON fr.RunID = afrd.RunID AND fr.FeatureID = afrd.FeatureID 
 		WHERE r.RunName = ? AND rt.RoutineName = ?) src
 PIVOT (
 	SUM(Value)

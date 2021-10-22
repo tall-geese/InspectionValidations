@@ -7,6 +7,6 @@ SELECT rt.RoutineName,
 		WHEN r.RunStatus = 12 THEN 'Archived'
 		WHEN r.RunStatus = 260 THEN 'Signed'
 	END AS [RunStatus]
-FROM MeasurLink7.dbo.Run r
-LEFT OUTER JOIN MeasurLink7.dbo.Routine rt ON r.RoutineID = rt.RoutineID 
+FROM dbo.Run r
+LEFT OUTER JOIN dbo.Routine rt ON r.RoutineID = rt.RoutineID 
 WHERE r.RunName = ?

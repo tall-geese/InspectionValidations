@@ -9,12 +9,12 @@ SELECT DISTINCT f.FeatureName, cfv.ValueString, COALESCE(fpr.LowerToleranceLimit
 			WHEN fpr.Target IS NULL THEN 'Attribute'
 			ELSE 'Variable'
 		END AS [Type]
-FROM MeasurLink7.dbo.FeatureRun fr 
-INNER JOIN MeasurLink7.dbo.Feature f ON F.FeatureID = fr.FeatureID 
-INNER JOIN MeasurLink7.dbo.Run r ON fr.RunID = r.RunID 
-INNER JOIN MeasurLink7.dbo.Routine rt ON rt.RoutineID = r.RoutineID 
-LEFT OUTER JOIN MeasurLink7.dbo.FeatureProperties fpr ON f.FeatureID = fpr.FeatureID AND f.FeaturePropID = fpr.FeaturePropID 
-LEFT OUTER JOIN MeasurLink7.dbo.DataGageTracking dgt ON f.FeatureID = dgt.FeatureID AND r.RunID = dgt.RunID
-LEFT OUTER JOIN MeasurLink7.dbo.Gage g ON dgt.GageID = g.GageID 
-LEFT OUTER JOIN MeasurLink7.dbo.CustomFieldValue cfv ON f.FeatureID = cfv.ApplyToID
+FROM dbo.FeatureRun fr 
+INNER JOIN dbo.Feature f ON F.FeatureID = fr.FeatureID 
+INNER JOIN dbo.Run r ON fr.RunID = r.RunID 
+INNER JOIN dbo.Routine rt ON rt.RoutineID = r.RoutineID 
+LEFT OUTER JOIN dbo.FeatureProperties fpr ON f.FeatureID = fpr.FeatureID AND f.FeaturePropID = fpr.FeaturePropID 
+LEFT OUTER JOIN dbo.DataGageTracking dgt ON f.FeatureID = dgt.FeatureID AND r.RunID = dgt.RunID
+LEFT OUTER JOIN dbo.Gage g ON dgt.GageID = g.GageID 
+LEFT OUTER JOIN dbo.CustomFieldValue cfv ON f.FeatureID = cfv.ApplyToID
 WHERE r.RunName = ? AND rt.RoutineName = ? AND cfv.CustomFieldID = 16 AND dgt.StartObsID = 1
