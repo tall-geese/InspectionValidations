@@ -42,7 +42,7 @@ Sub populateJobHeaders(jobNum As String, routine As Variant, customer As String,
     Exit Sub
 
 PopHeadersErr:
-    Err.Raise Number:=Err.Number, description:="sub: populateJobHeaders" & vbCrLf & Err.description
+    Err.Raise Number:=Err.Number, Description:="sub: populateJobHeaders" & vbCrLf & Err.Description
 
 End Sub
 
@@ -54,8 +54,9 @@ Public Sub populateReport(featureInfo() As Variant, featureMeasurements() As Var
     
     Application.ScreenUpdating = False
     
+    'TODO: test that this is infact 0-indexed in the normal situation
     Dim applicablePages As Integer
-    applicablePages = Application.WorksheetFunction.Floor(UBound(featureInfo, 2) / 8, 1) + 1
+    applicablePages = Application.WorksheetFunction.Floor((UBound(featureInfo, 2) - LBound(featureInfo, 2)) / 8, 1) + 1
     
     For i = 1 To applicablePages
         ThisWorkbook.Worksheets("PAGE " & i).Unprotect Password:="3063bqa"
@@ -74,11 +75,83 @@ Public Sub populateReport(featureInfo() As Variant, featureMeasurements() As Var
     Exit Sub
     
 PopulateReportErr:
-    Err.Raise Number:=Err.Number, description:=Err.description
+    Err.Raise Number:=Err.Number, Description:=Err.Description
 End Sub
 
-Private Sub populateHeaderFeatureInfo(featureInfo() As Variant)
 
+Public Sub populateAttrSheet(attFeatHeaders() As Variant, attFeatResults() As Variant, attFeatTraceability() As Variant, _
+                                noResults As Boolean, noTraceability As Boolean, noVariables As Boolean)
+    
+    'Explain the dimensions of the 3 parameters here
+    
+    On Error GoTo attSheetErr:
+    If (Not attFeatHeaders) = -1 Or (Not attFeatTraceability) = -1 Then Exit Sub
+    If RibbonCommands.samplingSize = vbNullString Then
+        Call SetAQL(customer:=RibbonCommands.customer, drawNum:=RibbonCommands.drawNum, _
+                ProdQty:=RibbonCommands.ProdQty)
+    End If
+   
+    With Sheets("PAGE_Attr")
+        .Visible = True
+        .Unprotect Password:="3063bqa"
+        
+        Dim i As Integer
+        For i = 0 To UBound(attFeatHeaders, 2)
+            .Range("A" & 11 + i).Value = attFeatHeaders(0, i) 'Balloon
+            .Range("B" & 11 + i).Value = attFeatHeaders(1, i) 'Char. Description
+            .Range("E" & 11 + i).Value = attFeatHeaders(2, i) 'Tolerance
+            
+            If Trim(attFeatHeaders(3, i)) = "100%" Or Trim(attFeatHeaders(3, i)) = "FAI & 100%" Then
+                .Range("H" & 11 + i).Value = "100%" 'AQL
+                .Range("I" & 11 + i).Value = "100%" 'SamplingSize
+            Else
+                If RibbonCommands.samplingSize >= RibbonCommands.ProdQty Then
+                    .Range("H" & 11 + i).Value = Format(RibbonCommands.custAQL, "0.00") ''AQL
+                    .Range("I" & 11 + i).Value = "100%" 'SamplingSize
+                Else
+                    .Range("H" & 11 + i).Value = Format(RibbonCommands.custAQL, "0.00") 'AQL
+                    .Range("I" & 11 + i).Value = RibbonCommands.samplingSize 'SamplingSize
+                End If
+            End If
+            
+            .Range("G" & 11 + i).Value = attFeatHeaders(4, i) 'GaugeID
+        
+            If noResults Then
+                .Range("J" & 11 + i).Value = "Fail" 'Result
+                .Range("J" & 11 + i).Interior.Color = RGB(255, 102, 102)
+            Else
+                .Range("J" & 11 + i).Value = "Pass" 'Result
+            End If
+            
+            If noTraceability Then
+                .Range("K" & 11 + i).Interior.Color = RGB(255, 102, 102) 'EmployeeID
+                .Range("L" & 11 + i).Interior.Color = RGB(255, 102, 102) 'Date
+            Else
+                .Range("K" & 11 + i).Value = attFeatTraceability(1, i) 'EmployeeID
+                .Range("L" & 11 + i).Value = attFeatTraceability(2, i) 'Date
+            End If
+        Next i
+        
+        .protect Password:="3063bqa"
+    End With
+    
+    If noVariables Then Worksheets("PAGE 1").Visible = False
+    Exit Sub
+    
+attSheetErr:
+    With Sheets("PAGE_Attr")
+        .Visible = False
+        .protect Password:="3063bqa"
+    
+    End With
+    
+    Err.Raise Number:=Err.Number, Description:="sub: populateAttrSheet" & vbCrLf & Err.Description
+
+End Sub
+
+
+Private Sub populateHeaderFeatureInfo(featureInfo() As Variant)
+        'Maybe, it could be 1-indexed
     'featureInfo(0,i) -> Balloon Number
     'featureInfo(1,i) -> Feature Description
     'featureInfo(2,i) -> Lower Tolerance
@@ -89,17 +162,17 @@ Private Sub populateHeaderFeatureInfo(featureInfo() As Variant)
     
     On Error GoTo FeatureHeadersErr
     
-    For i = 0 To UBound(featureInfo, 2)
+    For i = LBound(featureInfo, 2) To UBound(featureInfo, 2)
             Dim activePageNum As Integer
             'Each worksheet can only hold 8 features at a time, beyond that we need to switch the active page we're putting info on
-            activePageNum = Application.WorksheetFunction.Floor(i / 8, 1) + 1
+            activePageNum = Application.WorksheetFunction.Floor((i - LBound(featureInfo, 2)) / 8, 1) + 1
             
             With ThisWorkbook.Worksheets("PAGE " & activePageNum)
                 Dim colLetter As String
-                colLetter = ExcelHelpers.GetAddress((i Mod 8) + 5)
+                colLetter = ExcelHelpers.GetAddress(((i - LBound(featureInfo, 2)) Mod 8) + 5)
                 
                 Dim ballHeader As String
-                ballHeader = featureInfo(0, i)
+                ballHeader = featureInfo(0 + LBound(featureInfo, 1), i)
                 'If its a numeric balloon number, we should re-format it to be human-readable
                 If (Mid(ballHeader, 2, 1) = "_") And IsNumeric(Right(ballHeader, 1)) Then
                     If (CInt(Right(ballHeader, 2))) > 0 Then
@@ -118,12 +191,12 @@ Private Sub populateHeaderFeatureInfo(featureInfo() As Variant)
                 End If
                 
                 
-                .Range(colLetter & "10").Value = featureInfo(1, i) 'Description
+                .Range(colLetter & "10").Value = featureInfo(1 + LBound(featureInfo, 1), i) 'Description
                 
-                If featureInfo(6, i) = "Variable" Then
-                    .Range(colLetter & "16").Value = featureInfo(2, i) 'LTol
-                    .Range(colLetter & "17").Value = featureInfo(3, i) 'Target
-                    .Range(colLetter & "18").Value = featureInfo(4, i) 'UTol
+                If featureInfo(6 + LBound(featureInfo, 1), i) = "Variable" Then
+                    .Range(colLetter & "16").Value = featureInfo(2 + LBound(featureInfo, 1), i) 'LTol
+                    .Range(colLetter & "17").Value = featureInfo(3 + LBound(featureInfo, 1), i) 'Target
+                    .Range(colLetter & "18").Value = featureInfo(4 + LBound(featureInfo, 1), i) 'UTol
                 Else
                     .Range(colLetter & "16").Value = "N/A" 'LTol
                     .Range(colLetter & "17").Value = "N/A" 'Target
@@ -131,16 +204,17 @@ Private Sub populateHeaderFeatureInfo(featureInfo() As Variant)
                 
                 End If
                 
-                .Range(colLetter & "19").Value = featureInfo(5, i) 'Gauge
-                .Range(colLetter & "8").Value = featureInfo(6, i) 'Variable / Attribute  (hidden cell for later reference)
+                .Range(colLetter & "19").Value = featureInfo(5 + LBound(featureInfo, 1), i) 'Gauge
+                .Range(colLetter & "8").Value = featureInfo(6 + LBound(featureInfo, 1), i) 'Variable / Attribute  (hidden cell for later reference)
             End With
     Next i
     
     Exit Sub
     
 FeatureHeadersErr:
-    Err.Raise Number:=Err.Number, description:="sub: populateHeaderFeatureInfo" & vbCrLf & Err.description
+    Err.Raise Number:=Err.Number, Description:="sub: populateHeaderFeatureInfo" & vbCrLf & Err.Description
 End Sub
+
 
 Private Sub populateFeatureMeasuredValues(featureMeasurements() As Variant)
     'featureMeasurements has n x m dimensions where
@@ -152,38 +226,38 @@ Private Sub populateFeatureMeasuredValues(featureMeasurements() As Variant)
     
     If ((Not featureMeasurements) = -1) Then Exit Sub
 
-    For i = 0 To UBound(featureMeasurements, 1) 'For each balloon#
-            If i = 0 Then GoTo NextFeature
+    For i = LBound(featureMeasurements, 1) To UBound(featureMeasurements, 1) 'For each balloon#
+            If i = LBound(featureMeasurements, 1) Then GoTo NextFeature
             Dim activePageNum As Integer
-            activePageNum = Application.WorksheetFunction.Floor((i - 1) / 8, 1) + 1
+            activePageNum = Application.WorksheetFunction.Floor((i - (1 + LBound(featureMeasurements, 1))) / 8, 1) + 1
 
             With ThisWorkbook.Worksheets("PAGE " & activePageNum)
                 Dim colLetter As String
-                colLetter = ExcelHelpers.GetAddress(((i - 1) Mod 8) + 5)
+                colLetter = ExcelHelpers.GetAddress(((i - (1 + LBound(featureMeasurements, 1))) Mod 8) + 5)
                 
-                For j = 0 To UBound(featureMeasurements, 2) 'For each observation
+                For j = LBound(featureMeasurements, 2) To UBound(featureMeasurements, 2) 'For each observation
 
                     'if the operator forgot to take a measurement, then it comes up as a NULL value
                     If VarType(featureMeasurements(i, j)) = vbNull Then
-                        .Range(colLetter & (j + 22)).Value = "N/A"
+                        .Range(colLetter & (j - LBound(featureMeasurements, 1) + 22)).Value = "N/A"
                         GoTo NextMeasurement
                     End If
                     'We store a hidden value for Attribute/Variable in the 8th row
                     'If the returned value on an attribute dimension is 1, then it is a failure
                     If .Range(colLetter & "8").Value = "Attribute" Then
                         If featureMeasurements(i, j) = 0 Then
-                            .Range(colLetter & (j + 22)).Value = "Pass"
+                            .Range(colLetter & (j - LBound(featureMeasurements, 1) + 22)).Value = "Pass"
                         Else
-                            .Range(colLetter & (j + 22)).Value = "Fail"
+                            .Range(colLetter & (j - LBound(featureMeasurements, 1) + 22)).Value = "Fail"
                         End If
                     Else
                         'Otherwise its variable
                         If featureMeasurements(i, j) = DataSources.VARIABLE_FAILED_VALUE Then
                             'ShowALLObs needs to differentiate Failed measurements from missing ones and does this through a special value
-                            .Range(colLetter & (j + 22)).Value = "Fail"
+                            .Range(colLetter & (j - LBound(featureMeasurements, 1) + 22)).Value = "Fail"
                         Else
                             'Set the good value
-                            .Range(colLetter & (j + 22)).Value = featureMeasurements(i, j)
+                            .Range(colLetter & (j - LBound(featureMeasurements, 1) + 22)).Value = featureMeasurements(i, j)
                         End If
                         
                     End If
@@ -198,7 +272,7 @@ NextFeature:
     Exit Sub
     
 FeatureValuesErr:
-    Err.Raise Number:=Err.Number, description:="sub: populateFeatureMeasuredValues" & vbCrLf & Err.description
+    Err.Raise Number:=Err.Number, Description:="sub: populateFeatureMeasuredValues" & vbCrLf & Err.Description
 
 End Sub
 
@@ -240,7 +314,7 @@ Private Sub populateTraceabilityInfo(featureTraceabilityInfo() As Variant, pages
     Exit Sub
 
 FeatureTraceErr:
-    Err.Raise Number:=Err.Number, description:="sub: populateTraceabilityInfo" & vbCrLf & Err.description
+    Err.Raise Number:=Err.Number, Description:="sub: populateTraceabilityInfo" & vbCrLf & Err.Description
 
 End Sub
 
@@ -263,7 +337,7 @@ Private Sub Cleanup()
 
 
         .protect Password:="3063bqa", AllowFormattingCells:=True
-
+        .Visible = True
 
     End With
 
@@ -306,6 +380,19 @@ Private Sub Cleanup()
         End With
     Next i
     
+    'Reset the PAGE_Attr sheet
+    With Worksheets("PAGE_Attr")
+        .Unprotect Password:="3063bqa"
+    
+        With .Range("A11:L117")
+            .Value = ""
+            .Interior.Color = RGB(255, 255, 255)
+        End With
+    
+        .Visible = False
+        .protect Password:="3063bqa"
+    End With
+    
     ThisWorkbook.Worksheets("PAGE 1").Activate
     
     Application.ScreenUpdating = True
@@ -343,4 +430,16 @@ Private Sub Workbook_BeforeClose(Cancel As Boolean)
         Call DatabaseModule.Close_Connections
 CloseWB:
 
+End Sub
+
+    'Wrapper for ExcelHelpers.GetAQL()
+    'Likely only called in the event the user does not have "Auto Load Checklist" enabled
+Private Sub SetAQL(customer As String, drawNum As String, ProdQty As Integer)
+    Dim aqlValues() As String
+    aqlValues = ExcelHelpers.GetAQL(customer:=RibbonCommands.customer, drawNum:=RibbonCommands.drawNum, _
+                                            ProdQty:=RibbonCommands.ProdQty)
+    
+    RibbonCommands.samplingSize = aqlValues(0)
+    RibbonCommands.custAQL = aqlValues(1)
+        
 End Sub

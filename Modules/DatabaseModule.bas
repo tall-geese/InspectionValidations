@@ -65,7 +65,7 @@ Sub Init_Connections()
     Exit Sub
     
 Err_Conn:
-    Err.Raise Number:=Err.Number, description:="There was an error connecting with the Epicor and/or MeasurLink Database " _
+    Err.Raise Number:=Err.Number, Description:="There was an error connecting with the Epicor and/or MeasurLink Database " _
         & "you may not be connected to the Network or you may not have permission from the Administrator to read from the MeasurLink DataBase"
 
 End Sub
@@ -101,14 +101,14 @@ Private Sub ExecQuery(query As String, params() As Variant, conn_enum As Connect
     On Error GoTo 0
 
     If sqlRecordSet.EOF Then
-        Err.Raise Number:=vbObjectError + 2000, description:="sub:ExecQuery, no results"
+        Err.Raise Number:=vbObjectError + 2000, Description:="sub:ExecQuery, no results"
         'Returning no rows is not technically an error, let the calling function handle this
     End If
     
     Exit Sub
     
 QueryFailed:
-    Err.Raise Number:=vbObjectError + 3000, description:="sub:ExecQuery - params" & vbCrLf & Join(params, vbCrLf) & vbCrLf & Err.description
+    Err.Raise Number:=vbObjectError + 3000, Description:="sub:ExecQuery - params" & vbCrLf & Join(params, vbCrLf) & vbCrLf & Err.Description
     
 End Sub
 
@@ -168,9 +168,9 @@ Function GetJobInformation(JobID As String) As Variant()
 JobInfoErr:
     'if errored because recordset.EOF, then pass back to RibbonCommands and let it handle this
     If Err.Number = vbObjectError + 2000 Then
-        Err.Raise Number:=vbObjectError + 2000, description:="Job Does Not Exist" & vbCrLf & Err.description
+        Err.Raise Number:=vbObjectError + 2000, Description:="Job Does Not Exist" & vbCrLf & Err.Description
     Else
-        Err.Raise Number:=Err.Number, description:="Func: E10-GetJobInformation" & vbCrLf & Err.description
+        Err.Raise Number:=Err.Number, Description:="Func: E10-GetJobInformation" & vbCrLf & Err.Description
     End If
 End Function
 
@@ -191,7 +191,7 @@ ShiftERR:
         Get1XSHIFTInsps = "0"  'Technically, if we didnt run any shifts, we dont owe any inspections
         Exit Function
     Else
-        Err.Raise Number:=Err.Number, description:="Func: E10-Get1XSHIFTInsps" & vbCrLf & Err.description
+        Err.Raise Number:=Err.Number, Description:="Func: E10-Get1XSHIFTInsps" & vbCrLf & Err.Description
     End If
     
 End Function
@@ -213,7 +213,7 @@ PartOpErr:
         GetPartOperationInfo = emptyArr 'Its possible that a part is strictly made outside, see IN0001 integrity springs
         Exit Function
     Else
-        Err.Raise Number:=Err.Number, description:="Func: E10-GetPartOpInfo" & vbCrLf & Err.description
+        Err.Raise Number:=Err.Number, Description:="Func: E10-GetPartOpInfo" & vbCrLf & Err.Description
     End If
     
 End Function
@@ -235,7 +235,7 @@ JobOpErr:
         GetJobOperationInfo = emptyArr 'Part didnt actually get machined at all in house
         Exit Function
     Else
-        Err.Raise Number:=Err.Number, description:="Func: E10-GetJobOpInfo" & vbCrLf & Err.description
+        Err.Raise Number:=Err.Number, Description:="Func: E10-GetJobOpInfo" & vbCrLf & Err.Description
     End If
 
 End Function
@@ -265,10 +265,10 @@ Function GetFeatureHeaderInfo(jobNum As String, routine As String) As Variant()
     
 FeatureHeaderErr:
     If Err.Number = vbObjectError + 2000 Then
-        Err.Raise Number:=Err.Number, description:="Func: ML7-GetFeatureHeaderInfo" & vbCrLf & Err.description & vbCrLf _
+        Err.Raise Number:=Err.Number, Description:="Func: ML7-GetFeatureHeaderInfo" & vbCrLf & Err.Description & vbCrLf _
                 & "There may not be GaugeID's entered for " & routine
     Else
-        Err.Raise Number:=Err.Number, description:="Func: ML7-GetFeatureHeaderInfo" & vbCrLf & Err.description
+        Err.Raise Number:=Err.Number, Description:="Func: ML7-GetFeatureHeaderInfo" & vbCrLf & Err.Description
     End If
 End Function
 
@@ -308,7 +308,7 @@ FeatureValuesErr:
         GetFeatureMeasuredValues = emptyArr
         Exit Function
     Else
-        Err.Raise Number:=Err.Number, description:="Func: ML7-GetFeatureMeasuredValues" & vbCrLf & Err.description
+        Err.Raise Number:=Err.Number, Description:="Func: ML7-GetFeatureMeasuredValues" & vbCrLf & Err.Description
     End If
 End Function
 
@@ -330,7 +330,7 @@ AllFeatureValuesErr:
         GetAllFeatureMeasuredValues = emptyArr
         Exit Function
     Else
-        Err.Raise Number:=Err.Number, description:="Func: ML7-GetAllFeatureMeasuredValues" & vbCrLf & Err.description
+        Err.Raise Number:=Err.Number, Description:="Func: ML7-GetAllFeatureMeasuredValues" & vbCrLf & Err.Description
     End If
 End Function
 
@@ -352,7 +352,7 @@ FeatureTraceabilityErr:
         GetFeatureTraceabilityData = emptyArr
         Exit Function
     Else
-        Err.Raise Number:=Err.Number, description:="Func: ML7-GetFeatureTraceabilityData" & vbCrLf & Err.description
+        Err.Raise Number:=Err.Number, Description:="Func: ML7-GetFeatureTraceabilityData" & vbCrLf & Err.Description
     End If
 End Function
 
@@ -374,9 +374,76 @@ AllFeatureTraceabilityErr:
         GetAllFeatureTraceabilityData = emptyArr
         Exit Function
     Else
-        Err.Raise Number:=Err.Number, description:="Func: ML7-GetAllFeatureTraceabilityData" & vbCrLf & Err.description
+        Err.Raise Number:=Err.Number, Description:="Func: ML7-GetAllFeatureTraceabilityData" & vbCrLf & Err.Description
     End If
 End Function
+
+'Final Attribute Data Collection
+'TODO: test if this would throw an erorr if the routine was never created yet
+Function GetFinalAttrHeaders(jobNum As String, routine As String) As Variant()
+    On Error GoTo GetFinalAttrHeadersErr
+    Set fso = New FileSystemObject
+    query = fso.OpenTextFile(DataSources.QUERIES_PATH & "Final_Attr_Headers.sql").ReadAll
+    params = Array("r.RunName," & jobNum, "rt.RoutineName," & routine)
+    
+    Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.ML7)
+
+    GetFinalAttrHeaders = sqlRecordSet.GetRows()
+    Exit Function
+    
+GetFinalAttrHeadersErr:
+    If Err.Number = vbObjectError + 2000 Then
+        Dim emptyArr() As Variant
+        GetFinalAttrHeaders = emptyArr
+        Exit Function
+    Else
+        Err.Raise Number:=Err.Number, Description:="Func: ML7-GetFinalAttrHeaders" & vbCrLf & Err.Description
+    End If
+End Function
+
+Function GetFinalAttrResults(jobNum As String, routine As String) As Variant()
+    On Error GoTo GetFinalAttrResultsErr
+    Set fso = New FileSystemObject
+    query = fso.OpenTextFile(DataSources.QUERIES_PATH & "Final_Attr_Results.sql").ReadAll
+    params = Array("r.RunName," & jobNum, "rt.RoutineName," & routine)
+    
+    Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.ML7)
+
+    GetFinalAttrResults = sqlRecordSet.GetRows()
+    Exit Function
+    
+GetFinalAttrResultsErr:
+    If Err.Number = vbObjectError + 2000 Then
+        Dim emptyArr() As Variant
+        GetFinalAttrResults = emptyArr
+        Exit Function
+    Else
+        Err.Raise Number:=Err.Number, Description:="Func: ML7-GetFinalAttrResults" & vbCrLf & Err.Description
+    End If
+End Function
+
+Function GetFinalAttrTraceability(jobNum As String, routine As String) As Variant()
+    On Error GoTo GetFinalAttrTraceabilityErr
+    Set fso = New FileSystemObject
+    query = fso.OpenTextFile(DataSources.QUERIES_PATH & "Final_Attr_Traceability.sql").ReadAll
+    params = Array("r.RunName," & jobNum, "rt.RoutineName," & routine)
+    
+    Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.ML7)
+
+    GetFinalAttrTraceability = sqlRecordSet.GetRows()
+    Exit Function
+    
+GetFinalAttrTraceabilityErr:
+    If Err.Number = vbObjectError + 2000 Then
+        Dim emptyArr() As Variant
+        GetFinalAttrTraceability = emptyArr
+        Exit Function
+    Else
+        Err.Raise Number:=Err.Number, Description:="Func: ML7-GetFinalAttrTraceability" & vbCrLf & Err.Description
+    End If
+End Function
+
+
 
     'Called by userform to determine how many Inspections it should require for FI_DIM
 Function IsAllAttribrute(routine As Variant) As Boolean
@@ -397,7 +464,7 @@ AllAttribruteErr:
         IsAllAttribrute = False
         Exit Function
     Else
-        Err.Raise Number:=Err.Number, description:="Func: ML7-IsAllAttribrute" & vbCrLf & Err.description
+        Err.Raise Number:=Err.Number, Description:="Func: ML7-IsAllAttribrute" & vbCrLf & Err.Description
     End If
 
 End Function
@@ -418,9 +485,9 @@ Function GetPartRoutineList(partNum As String, Revision As String) As Variant()
     
 PartRoutineListErr:
     If Err.Number = vbObjectError + 2000 Then
-        Err.Raise Number:=vbObjectError + 2000, description:="No Routines Found for this Part Number" & vbCrLf & "This may not be a MeasurLink applicable part" & vbCrLf & Err.description
+        Err.Raise Number:=vbObjectError + 2000, Description:="No Routines Found for this Part Number" & vbCrLf & "This may not be a MeasurLink applicable part" & vbCrLf & Err.Description
     Else
-        Err.Raise Number:=Err.Number, description:="Func: ML7-GetPartRoutineList" & vbCrLf & Err.description
+        Err.Raise Number:=Err.Number, Description:="Func: ML7-GetPartRoutineList" & vbCrLf & Err.Description
     End If
     
 End Function
@@ -443,7 +510,7 @@ RunRoutineListErr:
         GetRunRoutineList = noRoutines
         Exit Function
     Else
-        Err.Raise Number:=Err.Number, description:="Func: ML7-GetRunRoutineList" & vbCrLf & Err.description
+        Err.Raise Number:=Err.Number, Description:="Func: ML7-GetRunRoutineList" & vbCrLf & Err.Description
     End If
     
 End Function
@@ -494,7 +561,7 @@ Function GetCustomerName(jobNum As String) As String
     Exit Function
     
 CustomerNameErr:
-    Err.Raise Number:=Err.Number, description:="Func: IK-GetCustomerName" & vbCrLf & Err.description
+    Err.Raise Number:=Err.Number, Description:="Func: IK-GetCustomerName" & vbCrLf & Err.Description
 End Function
 
     'Can't use static emails since positions often change, update the emails in the database accordingly.
@@ -512,7 +579,7 @@ Function GetCellLeadEmail(cell As Variant) As String
     End If
 
 GetEmailErr:
-    Err.Raise Number:=Err.Number, description:="Func: IK-GetCellLeadEmail" & vbCrLf & Err.description
+    Err.Raise Number:=Err.Number, Description:="Func: IK-GetCellLeadEmail" & vbCrLf & Err.Description
 End Function
 
 

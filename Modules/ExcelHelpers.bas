@@ -50,28 +50,34 @@ Public Function GetAQL(customer As String, drawNum As String, ProdQty As Integer
     
     
     Select Case ProdQty
-        Case 2 To 8
+        Case 2 To 4
             row = "2"
-        Case 9 To 15
+        Case 5 To 10
             row = "3"
-        Case 16 To 25
+        Case 11 To 15
             row = "4"
-        Case 26 To 50
+        Case 16 To 20
             row = "5"
-        Case 51 To 90
+        Case 22 To 25
             row = "6"
-        Case 91 To 150
+        Case 26 To 30
             row = "7"
-        Case 151 To 280
+        Case 31 To 50
             row = "8"
-        Case 281 To 500
+        Case 51 To 90
             row = "9"
-        Case 501 To 1200
+        Case 91 To 150
             row = "10"
-        Case 1201 To 3200
+        Case 151 To 280
             row = "11"
-        Case 3201 To 32000
+        Case 281 To 500
             row = "12"
+        Case 501 To 1200
+            row = "13"
+        Case 1201 To 3200
+            row = "14"
+        Case 3201 To 32000
+            row = "15"
         Case Else
             GoTo ProdQtyErr
     End Select
@@ -107,7 +113,7 @@ FileDirErr:
                     
 WbReadErr:
     result = MsgBox("There was a problem when trying to read the AQL Level defined on the ML Frequency Chart Worksheet" & _
-                    vbCrLf & "Please let a QE know to fill this value in" & vbCrLf & Err.description, vbExclamation)
+                    vbCrLf & "Please let a QE know to fill this value in" & vbCrLf & Err.Description, vbExclamation)
 10
     partWb.Close SaveChanges:=False
     Application.ScreenUpdating = True
@@ -180,3 +186,52 @@ Public Function GetAddress(column As Integer) As String
     GetAddress = vArr(0)
 
 End Function
+
+
+Public Function nRange(lower As Integer, upper As Integer) As Variant()
+    Dim outArr() As Variant
+    Dim i As Integer
+    ReDim Preserve outArr(lower To upper)
+    
+    For i = lower To upper
+        outArr(i) = CDbl(i)
+    Next i
+    nRange = outArr
+    
+End Function
+
+Public Function updateForPivotSlice(inputArr() As Variant) As Variant()
+    Dim outArr() As Variant
+    ReDim Preserve outArr(1 To UBound(inputArr) + 1)
+    Dim i As Integer
+    
+    For i = 1 To UBound(outArr)
+        If i = 1 Then
+            outArr(1) = CDbl(1)
+        Else
+            outArr(i) = inputArr(i - 1) + 1
+        End If
+    Next i
+    
+    updateForPivotSlice = outArr
+End Function
+
+Public Function fill_null(inputArr() As Variant) As Variant()
+    'For whatever reason, VBA wont let us transpose or slice an array that has null values in it.
+        'So will have to replace them with some filler values. However, it doenst really matter what
+        'they are mostly for Arritbute features and we are going to be slicing those off anyways
+
+    Dim i As Integer
+    Dim j As Integer
+    For i = 0 To UBound(inputArr)
+        For j = 0 To UBound(inputArr, 2)
+            If IsNull(inputArr(i, j)) Then
+                inputArr(i, j) = 0
+            End If
+        Next j
+    Next i
+    fill_null = inputArr
+End Function
+
+
+

@@ -1,5 +1,4 @@
 Attribute VB_Name = "RibbonCommands"
-
 '*************************************************************************************************
 '
 '   RibbonCommands
@@ -17,6 +16,8 @@ Public rev As String
 Public partDesc As String
 Public drawNum As String
 Public ProdQty As Integer
+Public samplingSize As String
+Public custAQL As String
 
 'Epicor Operation-Specific JobInfo
 Public multiMachinePart As Boolean
@@ -264,11 +265,11 @@ QueryRoutines:
     Exit Sub
     
 RoutineLevelErr:
-    MsgBox Prompt:="Error when attmepting to associate the machining information with a routine: " & vbCrLf & runRoutineList(0, i) & vbCrLf & Err.description, Buttons:=vbExclamation
+    MsgBox Prompt:="Error when attmepting to associate the machining information with a routine: " & vbCrLf & runRoutineList(0, i) & vbCrLf & Err.Description, Buttons:=vbExclamation
     GoTo 10
 
 ML_QueryErr:
-    MsgBox Prompt:="Error when querying for information: " & vbCrLf & Err.description, Buttons:=vbExclamation
+    MsgBox Prompt:="Error when querying for information: " & vbCrLf & Err.Description, Buttons:=vbExclamation
     GoTo 10
     
 SetupTypeUndefined:
@@ -276,7 +277,7 @@ SetupTypeUndefined:
     GoTo 10
     
 ML_RoutineInfo:
-    MsgBox Prompt:="Error on handling routine: " & routine & vbCrLf & "information is either missing or incorrect, alert a QE" & vbCrLf & Err.description, Buttons:=vbExclamation
+    MsgBox Prompt:="Error on handling routine: " & routine & vbCrLf & "information is either missing or incorrect, alert a QE" & vbCrLf & Err.Description, Buttons:=vbExclamation
     GoTo 10
 End Sub
 
@@ -528,7 +529,7 @@ Public Function GetMachiningLevel(routineName As Variant) As Integer
     Exit Function
     
 RoutineParsingErr:
-    Err.Raise Number:=vbObjectError + 2500, description:="Couldn't figure out, what machining operation " & routineNmae & _
+    Err.Raise Number:=vbObjectError + 2500, Description:="Couldn't figure out, what machining operation " & routineNmae & _
         vbCrLf & "should belong to. Does not follow correct naming conventions"
 End Function
 
@@ -553,7 +554,7 @@ Private Sub SetFeatureVariables()
     Exit Sub
     
 Err1:
-    result = MsgBox("Could not set Job/Run information. Issue found at: " & vbCrLf & Err.description, vbCritical)
+    result = MsgBox("Could not set Job/Run information. Issue found at: " & vbCrLf & Err.Description, vbCritical)
     Err.Raise Number:=vbObjectError + 1000
 
 End Sub
@@ -586,6 +587,8 @@ Private Sub ClearFeatureVariables(Optional preserveRoutines As Boolean)
     partDesc = vbNullString
     multiMachinePart = False
     machineStageMissing = False
+    samplingSize = vbNullString
+    custAQL = vbNullString
     
     'Keep routines for ComboBox
     Erase partRoutineList
@@ -607,6 +610,11 @@ Private Sub SetJobVariables(jobNum As String)
     rev = jobInfo(3, 0)
     partDesc = jobInfo(5, 0)
     drawNum = jobInfo(6, 0)
+    
+    'If the prod Qty is null, its because we dont have a single complete Operation
+    If VarType(jobInfo(7, 0)) = vbNull Then
+        Err.Raise Number:=vbObjectError + 2100, Description:="No Operations have been completed for this Job." & vbCrLf & "Cant Verify Inspections"
+    End If
     ProdQty = jobInfo(7, 0)
     
     Exit Sub
@@ -617,12 +625,12 @@ jbInfoErr:
         MsgBox ("Not A Valid Job Number")
     Else
     'Otherwise we encountered a different problem
-        result = MsgBox(Err.description, vbExclamation)
+        result = MsgBox(Err.Description, vbExclamation)
     End If
     
     'Either way, reset the job number and invalidate the controls
     jobNumUcase = ""
-    Err.Raise Number:=Err.Number, description:="SetJobVariables" & vbCrLf & Err.description
+    Err.Raise Number:=Err.Number, Description:="SetJobVariables" & vbCrLf & Err.Description
 
 
 End Sub
@@ -630,25 +638,133 @@ End Sub
 Private Sub SetWorkbookInformation()
     Dim index As Integer
     Dim machine As String
+    Dim attFeatHeaders() As Variant
+    Dim attFeatResults() As Variant
+    Dim attFeatTraceability() As Variant
+    Dim resultsFailed As Boolean
+    Dim noTraceability As Boolean
+    Dim noVariables As Boolean
+    
     If (Not Not runRoutineList) Then
         index = GetRoutineIndex(rtCombo_TextField)
         machine = runRoutineList(4, index)
+        
+'Conditionally handle information for FI_DIM, FI_VIS, FI_RECINSP. Breakoff attributes into their own sheet
+        If InStr(rtCombo_TextField, "FI_DIM") > 0 Or InStr(rtCombo_TextField, "FI_VIS") > 0 Or InStr(rtCombo_TextField, "RECINSP") > 0 Then
+            Dim ogLen As Integer
+            ogLen = UBound(featureHeaderInfo, 2)
+            Call SliceVariableInformation(noVariables)  'Remove attribute features from our array of information
+                
+                'if the array if not initialized, then we either have no variable features or there's no features at all
+            If noVariables Then GoTo SetFIattr
+            ' If (Not featureHeaderInfo) = -1 Then GoTo SetFIattr
+            
+                'If the array size is unchanged after slicing then there are only variable features, dont bother querying for attr below
+            If ogLen = UBound(featureHeaderInfo, 2) - LBound(featureHeaderInfo, 2) Then GoTo SetWBinfo
+SetFIattr:
+
+            
+            attFeatHeaders = DatabaseModule.GetFinalAttrHeaders(jobNumUcase, rtCombo_TextField)
+            If (Not attFeatHeaders) = -1 Then GoTo SetWBinfo 'either Routine isnt real or was never created
+            
+            
+            attFeatResults = DatabaseModule.GetFinalAttrResults(jobNumUcase, rtCombo_TextField)
+            If VarType(attFeatResults(0, 0)) = vbNull Then
+                resultsFailed = True
+                MsgBox "No inspections taken for routine" & vbCrLf & rtCombo_TextField
+            
+            ElseIf attFeatResults(0, 0) > 0 Then
+                resultsFailed = True
+                MsgBox "One of the most recent inspections for routine" & vbCrLf & rtCombo_TextField & vbCrLf _
+                    & "Contains a Fail. Additional inspection is needed", vbCritical
+            
+            ElseIf attFeatResults(1, 0) <> UBound(attFeatHeaders, 2) + 1 Then
+                resultsFailed = True
+                MsgBox "Not all attribute features have been inspected for routine" & vbCrLf & rtCombo_TextField _
+                    & vbCrLf & "Please have QC review the routine for this Job", vbCritical
+            End If
+                        
+            attFeatTraceability = DatabaseModule.GetFinalAttrTraceability(jobNumUcase, rtCombo_TextField)
+                'If theres no tracability or we dont have traceability data for every feature
+            If (Not attFeatTraceability) = -1 Or UBound(attFeatTraceability, 2) <> UBound(attFeatHeaders, 2) Then noTraceability = True
+             
+        End If
     Else
         'If our runRoutineList is empty, then ThisWorkbook will end up just running the cleanup anyway
         machine = ""
     End If
     
+SetWBinfo:
     On Error GoTo wbErr:
     Call ThisWorkbook.populateJobHeaders(jobNum:=jobNumUcase, routine:=rtCombo_TextField, customer:=customer, _
                                             machine:=machine, partNum:=partNum, rev:=rev, partDesc:=partDesc)
     Call ThisWorkbook.populateReport(featureInfo:=featureHeaderInfo, featureMeasurements:=featureMeasuredValues, _
                                         featureTraceability:=featureTraceabilityInfo)
+            
+    Call ThisWorkbook.populateAttrSheet(attFeatHeaders:=attFeatHeaders, attFeatResults:=attFeatResults, _
+            attFeatTraceability:=attFeatTraceability, noResults:=resultsFailed, noTraceability:=noTraceability, noVariables:=noVariables)
     Exit Sub
 wbErr:
-    result = MsgBox("Could not set information to the workbook" & vbCrLf & "issue found at " & vbCrLf & Err.description, vbCritical)
+    result = MsgBox("Could not set information to the workbook" & vbCrLf & "issue found at " & vbCrLf & Err.Description, vbCritical)
     Err.Raise Number:=vbObjectError + 1200
     
 End Sub
+
+'Called by SetWorkbookInformation
+    'Take the Global values for featureHeaderInfo, featureMeasuredValues, and featureTraceabilityInfo and slice out the attribute features
+    
+    'Params
+        'noVariables(byref Boolean) -> if true, then only attribute features exist in our feature arrays
+Private Sub SliceVariableInformation(ByRef noVariables As Boolean)
+    If (Not featureHeaderInfo) = -1 Or (Not featureMeasuredValues) = -1 Then Exit Sub
+    
+    Dim varCols() As Variant
+    Dim i As Integer
+    
+    For i = 0 To UBound(featureHeaderInfo, 2)
+        If featureHeaderInfo(6, i) <> "Variable" Then GoTo continue
+            
+        If (Not varCols) = -1 Then
+            ReDim Preserve varCols(0)
+            varCols(0) = i + 1
+        Else
+            ReDim Preserve varCols(UBound(varCols) + 1)
+            varCols(UBound(varCols)) = i + 1
+        End If
+continue:
+    Next i
+    
+        'If there are only Attr features. Erase, as we will be querying for them in another format.
+    If (Not varCols) = -1 Then
+        noVariables = True
+        Erase featureHeaderInfo
+        Erase featureMeasuredValues
+        Erase featureTraceabilityInfo
+        Exit Sub
+    End If
+    
+    'If this doesn't make sense, its because VBA slices arrays as though they were 1-indexed, and of course...
+        'the ADODB library returns records as 0-indexed.
+        'transposing the array twice returns the same array, but 1-indexed
+        'but we're also taking care create our temporary arrays as 1-indexed
+    varCols = Application.Transpose(Application.Transpose(varCols))
+    
+    
+    Dim tempCols() As Variant
+    tempCols = ExcelHelpers.nRange(1, UBound(featureMeasuredValues, 2) + 1) 'This should get each measurement taken.....
+    Dim tempRow() As Variant
+    tempRow = Application.Transpose(Array(1, 2, 3, 4, 5, 6, 7))
+    
+        'Get all the header information for the Variable columns
+    featureHeaderInfo = Application.index(featureHeaderInfo, Application.Transpose(Array(1, 2, 3, 4, 5, 6, 7)), varCols)
+    
+        'Get all the measurement information for the Variable columns
+    varCols = ExcelHelpers.updateForPivotSlice(varCols)
+    featureMeasuredValues = ExcelHelpers.fill_null(featureMeasuredValues)
+    featureMeasuredValues = Application.index(featureMeasuredValues, Application.Transpose(varCols), tempCols)
+End Sub
+
+
 
 Public Function GetRoutineIndex(routineName As String) As Integer
     'If we dont' have a runRoutineList or didnt find a routine of the given name, then return 99 as the index which we will
@@ -665,4 +781,6 @@ Public Function GetRoutineIndex(routineName As String) As Integer
 FoundRoutine:
     GetRoutineIndex = i
 End Function
+
+
 

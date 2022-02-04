@@ -35,6 +35,14 @@ Dim aqlQuantity As String
 
 
 
+Private Sub Image10_BeforeDragOver(ByVal Cancel As MSForms.ReturnBoolean, ByVal Data As MSForms.DataObject, ByVal X As Single, ByVal Y As Single, ByVal DragState As MSForms.fmDragState, ByVal Effect As MSForms.ReturnEffect, ByVal Shift As Integer)
+
+End Sub
+
+Private Sub Label42_Click()
+
+End Sub
+
 Private Sub Routine1_Click()
 
 End Sub
@@ -254,7 +262,7 @@ UniqueRoutineErr:
 
 RoutineSwitchErr:
        result = MsgBox("Error when determining observations needed for : " & RibbonCommands.partRoutineList(0, i) & vbCrLf & _
-                 "UserForm Init" & vbCrLf & Err.description, vbCritical)
+                 "UserForm Init" & vbCrLf & Err.Description, vbCritical)
 
 End Sub
 
@@ -472,17 +480,21 @@ Private Sub SetAQLHeader(AQL As String)
     Me.AQL.Caption = AQL
 End Sub
 
+    'Wrapper for ExcelHelper.GetAQL()
+    'stores the values that we find in RibbonCommands reduce redundant queries
 Private Function GetAQL(customer As String, drawNum As String, ProdQty As Integer) As String
-    If aqlQuantity = "" Then
+    If RibbonCommands.samplingSize = vbNullString Then
         Dim aqlValues() As String
         aqlValues = ExcelHelpers.GetAQL(customer:=RibbonCommands.customer, drawNum:=RibbonCommands.drawNum, _
                                                 ProdQty:=RibbonCommands.ProdQty)
         Me.AQL.Caption = Format(aqlValues(1), "0.00")
-        aqlQuantity = aqlValues(0)
+        
+        RibbonCommands.samplingSize = aqlValues(0)
+        RibbonCommands.custAQL = aqlValues(1)
+        
         GetAQL = aqlValues(0)
     Else
-        GetAQL = aqlQuantity
-
+        GetAQL = RibbonCommands.samplingSize
     End If
 
     
