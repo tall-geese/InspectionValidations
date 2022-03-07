@@ -21,12 +21,10 @@ INNER JOIN dbo.Feature f ON F.FeatureID = fr.FeatureID
 INNER JOIN dbo.Run r ON fr.RunID = r.RunID 
 INNER JOIN dbo.Routine rt ON rt.RoutineID = r.RoutineID 
 LEFT OUTER JOIN dbo.FeatureProperties fpr ON f.FeatureID = fpr.FeatureID AND f.FeaturePropID = fpr.FeaturePropID 
-LEFT OUTER JOIN dbo.DataGageTracking dgt ON f.FeatureID = dgt.FeatureID AND r.RunID = dgt.RunID
-LEFT OUTER JOIN dbo.Gage g ON dgt.GageID = g.GageID 
 LEFT OUTER JOIN dbo.CustomFieldValue cfv ON f.FeatureID = cfv.ApplyToID
 LEFT OUTER JOIN dbo.CustomFieldValue cfv2 ON f.FeatureID = cfv2.ApplyToID
 LEFT OUTER JOIN dbo.CustomFieldValue cfv3 ON f.FeatureID = cfv3.ApplyToID
-WHERE r.RunName = ? AND rt.RoutineName = ? AND cfv.CustomFieldID = 16 AND dgt.StartObsID = 1 AND cfv2.CustomFieldID = 11 AND cfv3.CustomFieldID = 3
+WHERE r.RunName = ? AND rt.RoutineName = ? AND cfv.CustomFieldID = 16 AND cfv2.CustomFieldID = 11 AND cfv3.CustomFieldID = 3
 	
 	
 
