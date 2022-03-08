@@ -15,7 +15,7 @@ SELECT DISTINCT f.FeatureName, cfv.ValueString, COALESCE(fpr.LowerToleranceLimit
 			WHEN CHARINDEX('MIN', cfv3.ValueString) <> 0 THEN CONCAT(cfv3.ValueString, '/')
 			WHEN CHARINDEX('/', cfv3.ValueString) = 0 THEN 'NA'
 			ELSE cfv3.ValueString
-		END AS [FixedAttrTol]
+		END AS [FixedAttrTol], cfv4.ValueString[Balloon Num]
 FROM dbo.FeatureRun fr 
 INNER JOIN dbo.Feature f ON F.FeatureID = fr.FeatureID 
 INNER JOIN dbo.Run r ON fr.RunID = r.RunID 
@@ -24,7 +24,8 @@ LEFT OUTER JOIN dbo.FeatureProperties fpr ON f.FeatureID = fpr.FeatureID AND f.F
 LEFT OUTER JOIN dbo.CustomFieldValue cfv ON f.FeatureID = cfv.ApplyToID
 LEFT OUTER JOIN dbo.CustomFieldValue cfv2 ON f.FeatureID = cfv2.ApplyToID
 LEFT OUTER JOIN dbo.CustomFieldValue cfv3 ON f.FeatureID = cfv3.ApplyToID
-WHERE r.RunName = ? AND rt.RoutineName = ? AND cfv.CustomFieldID = 16 AND cfv2.CustomFieldID = 11 AND cfv3.CustomFieldID = 3
+LEFT OUTER JOIN dbo.CustomFieldValue cfv4 ON f.FeatureID = cfv4.ApplyToID
+WHERE r.RunName = ? AND rt.RoutineName = ? AND cfv.CustomFieldID = 16 AND cfv2.CustomFieldID = 11 AND cfv3.CustomFieldID = 3 AND cfv4.CustomFieldID = 13
 	
 	
 
