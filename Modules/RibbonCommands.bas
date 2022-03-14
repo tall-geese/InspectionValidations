@@ -18,6 +18,9 @@ Public drawNum As String
 Public ProdQty As Integer
 Public samplingSize As String
 Public custAQL As String
+Public IsChildJob As Boolean  'example: NV18209-2
+Public IsParentJob As Boolean  'example: NV18209
+
 
 'Epicor Operation-Specific JobInfo
 Public multiMachinePart As Boolean
@@ -48,13 +51,15 @@ Public runRoutineList() As Variant
 
 'Features and Measurement Information, applicable to the currently selected Routine
 Dim featureHeaderInfo() As Variant
-    '(0,i) -> Balloon#
+    '(0,i) -> FeatureName
     '(1,i) -> Description
     '(2,i) -> LTol
     '(3,i) -> Target
     '(4,i) -> UTol
     '(5,i) -> Insp Method
     '(6,i) -> Attribute / Variable
+    '(7,i) -> Attribute Tolerance
+    '(8,i) -> Balloon Num
 Dim featureMeasuredValues() As Variant
     '(n,m) dimensional array where..
         'n -> number of features
@@ -112,7 +117,7 @@ Public Sub jbEditText_OnChange(ByRef control As Office.IRibbonControl, ByRef Tex
     If Text = vbNullString Then GoTo 10
     
     On Error GoTo 10
-    Call SetJobVariables(jobNum:=jobNumUcase) 'If this errors out, just clears everything
+    Call SetJobVariables(jobnum:=jobNumUcase) 'If this errors out, just clears everything
     
     partOperations = DatabaseModule.GetPartOperationInfo(jobNumUcase)
     If ((Not partOperations) = -1) Then GoTo QueryRoutines 'If the part never gets machined inside, dont bother querying for run info
@@ -165,7 +170,7 @@ Nexti:
 QueryRoutines:
     Dim tempRoutineArray() As Variant
     On Error GoTo ML_QueryErr:
-    customer = DatabaseModule.GetCustomerName(jobNum:=jobNumUcase)
+    customer = DatabaseModule.GetCustomerName(jobnum:=jobNumUcase)
     partRoutineList = DatabaseModule.GetPartRoutineList(partNum, rev)
     tempRoutineArray = DatabaseModule.GetRunRoutineList(jobNumUcase)
 
@@ -185,16 +190,30 @@ QueryRoutines:
         Dim routine As String
         routine = runRoutineList(0, i)
         Dim features() As Variant
-        features = DatabaseModule.GetFeatureHeaderInfo(jobNum:=jobNumUcase, routine:=routine)
+        features = DatabaseModule.GetFeatureHeaderInfo(jobnum:=jobNumUcase, routine:=routine)
 
         'Add the number of found Observations
         Dim featureCount() As Variant
-        featureCount = DatabaseModule.GetFeatureMeasuredValues(jobNum:=jobNumUcase, routine:=routine, _
+        featureCount = DatabaseModule.GetFeatureMeasuredValues(jobnum:=jobNumUcase, routine:=routine, _
                                         delimFeatures:=JoinPivotFeatures(features), featureInfo:=features)
         If ((Not featureCount) = -1) Then 'If we get returned an empty array, then the value is 0
             runRoutineList(2, i) = 0
         Else
-            runRoutineList(2, i) = UBound(featureCount, 2) + 1
+            If routine Like "*FI_DIM*" Then
+                'FI_DIM routines. Above we checked there we at least a single inspection
+                'Furthermore, if we have variable features we need to make sure we have enough good inspections of those
+                'Since we only ever do a single observation of the attribute features, looking at all features
+                'as a whole, this would normally assume that only one good observation exists
+                If Not DatabaseModule.IsAllAttribrute(routine:=routine) Then
+                    featureCount = DatabaseModule.GetFeatureMeasuredValues(jobnum:=jobNumUcase, routine:=routine, _
+                                    delimFeatures:=JoinPivotFeatures(features), featureInfo:=features, IS_FI_DIM:=True)
+                    runRoutineList(2, i) = UBound(featureCount, 2) + 1
+                Else
+                    runRoutineList(2, i) = UBound(featureCount, 2) + 1
+                End If
+            Else
+                runRoutineList(2, i) = UBound(featureCount, 2) + 1
+            End If
         End If
     Next i
     
@@ -241,7 +260,7 @@ QueryRoutines:
         Case "None"
             chkNone_Pressed = True
         Case Else
-            GoTo SetupTypeUndefined
+            If Not IsChildJob Then GoTo SetupTypeUndefined
     End Select
     
     On Error GoTo ML_RoutineInfo
@@ -375,8 +394,10 @@ Public Sub toggAutoForm_Toggle(ByRef control As Office.IRibbonControl, ByRef isP
     toggAutoForm_Pressed = isPressed
 End Sub
 Public Sub toggAutoForm_OnGetPressed(ByRef control As Office.IRibbonControl, ByRef ReturnedValue As Variant)
+    
     ReturnedValue = True
     toggAutoForm_Pressed = True
+    
 End Sub
 
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
@@ -536,19 +557,33 @@ End Function
 Private Sub SetFeatureVariables()
 
     On Error GoTo Err1
+    
+    Dim isFI_DIM As Boolean
+    Dim allAttr As Boolean
+    If rtCombo_TextField Like "*FI_DIM*" Then
+        isFI_DIM = True
+        If DatabaseModule.IsAllAttribrute(routine:=rtCombo_TextField) Then
+            allAttr = True
+        End If
+    End If
 
-    featureHeaderInfo = DatabaseModule.GetFeatureHeaderInfo(jobNum:=jobNumUcase, routine:=rtCombo_TextField)
+    featureHeaderInfo = DatabaseModule.GetFeatureHeaderInfo(jobnum:=jobNumUcase, routine:=rtCombo_TextField)
     
     'Should we filter or not filter observations shown based on Pass/Fail data
     'Having ShowAllObs pressed DOES NOT change the ObsFound value for the userform, that value is set in jbEditText
     If toggShowAllObs_Pressed Then
-        featureMeasuredValues = DatabaseModule.GetAllFeatureMeasuredValues(jobNum:=jobNumUcase, routine:=rtCombo_TextField, _
+        featureTraceabilityInfo = DatabaseModule.GetAllFeatureTraceabilityData(jobnum:=jobNumUcase, routine:=rtCombo_TextField)
+        featureMeasuredValues = DatabaseModule.GetAllFeatureMeasuredValues(jobnum:=jobNumUcase, routine:=rtCombo_TextField, _
                                                 delimFeatures:=JoinPivotFeatures(featureHeaderInfo))
-        featureTraceabilityInfo = DatabaseModule.GetAllFeatureTraceabilityData(jobNum:=jobNumUcase, routine:=rtCombo_TextField)
+
     Else
-        featureMeasuredValues = DatabaseModule.GetFeatureMeasuredValues(jobNum:=jobNumUcase, routine:=rtCombo_TextField, _
-                                                delimFeatures:=JoinPivotFeatures(featureHeaderInfo), featureInfo:=featureHeaderInfo)
-        featureTraceabilityInfo = DatabaseModule.GetFeatureTraceabilityData(jobNum:=jobNumUcase, routine:=rtCombo_TextField)
+            'If we have a FI_DIM with all Attr features then, we should leave the arrays unintialized
+        If Not allAttr Then
+            featureMeasuredValues = DatabaseModule.GetFeatureMeasuredValues(jobnum:=jobNumUcase, routine:=rtCombo_TextField, _
+                                                    delimFeatures:=JoinPivotFeatures(featureHeaderInfo), featureInfo:=featureHeaderInfo, IS_FI_DIM:=isFI_DIM)
+            
+            featureTraceabilityInfo = DatabaseModule.GetFeatureTraceabilityData(jobnum:=jobNumUcase, routine:=rtCombo_TextField, FI_DIM_ROUTINE:=isFI_DIM)
+        End If
     End If
     
     Exit Sub
@@ -589,6 +624,8 @@ Private Sub ClearFeatureVariables(Optional preserveRoutines As Boolean)
     machineStageMissing = False
     samplingSize = vbNullString
     custAQL = vbNullString
+    IsChildJob = False
+    IsParentJob = False
     
     'Keep routines for ComboBox
     Erase partRoutineList
@@ -599,11 +636,11 @@ Private Sub ClearFeatureVariables(Optional preserveRoutines As Boolean)
 
 End Sub
 
-Private Sub SetJobVariables(jobNum As String)
+Private Sub SetJobVariables(jobnum As String)
     On Error GoTo jbInfoErr
     Dim jobInfo() As Variant
     
-    jobInfo = DatabaseModule.GetJobInformation(JobID:=jobNum)
+    jobInfo = DatabaseModule.GetJobInformation(JobID:=jobnum)
     
     'Add the components of the array to our variables
     partNum = jobInfo(2, 0)
@@ -616,6 +653,25 @@ Private Sub SetJobVariables(jobNum As String)
         Err.Raise Number:=vbObjectError + 2100, Description:="No Operations have been completed for this Job." & vbCrLf & "Cant Verify Inspections"
     End If
     ProdQty = jobInfo(7, 0)
+    
+        'Check if a job is a Parent Job
+    IsParentJob = DatabaseModule.IsParentJob(JobNumber:=jobnum)
+    If IsParentJob Then Exit Sub 'Prod Qty should exclude negative transaction adjustments
+    
+    
+'        ProdQty = DatabaseModule.GetParentProdQty(JobNumber:=jobnum)
+'        Exit Sub
+'    End If
+
+
+        'Check if the Job is a Child Job Instance, only check if not already a parent job
+    If Not IsNumeric(Left(jobnum, 1)) And InStr(jobnum, "-") > 0 Then
+        Dim jobArr() As String
+        jobArr = Split(jobnum, "-")
+        If UBound(jobArr) = 1 Then
+            If (Len(jobArr(1)) = 1 Or Len(jobArr(1)) = 2) And IsNumeric(jobArr(1)) Then IsChildJob = True
+        End If
+    End If
     
     Exit Sub
 
@@ -671,7 +727,7 @@ SetFIattr:
             attFeatResults = DatabaseModule.GetFinalAttrResults(jobNumUcase, rtCombo_TextField)
             If VarType(attFeatResults(0, 0)) = vbNull Then
                 resultsFailed = True
-                MsgBox "No inspections taken for routine" & vbCrLf & rtCombo_TextField
+                MsgBox "No Attribute Inspections taken for routine" & vbCrLf & rtCombo_TextField
             
             ElseIf attFeatResults(0, 0) > 0 Then
                 resultsFailed = True
@@ -695,16 +751,21 @@ SetFIattr:
     End If
     
 SetWBinfo:
-    On Error GoTo wbErr:
-    Call ThisWorkbook.populateJobHeaders(jobNum:=jobNumUcase, routine:=rtCombo_TextField, customer:=customer, _
+    On Error GoTo wbErr
+    ExcelHelpers.OpenDataValWB
+    
+    Call ThisWorkbook.populateJobHeaders(jobnum:=jobNumUcase, routine:=rtCombo_TextField, customer:=customer, _
                                             machine:=machine, partNum:=partNum, rev:=rev, partDesc:=partDesc)
     Call ThisWorkbook.populateReport(featureInfo:=featureHeaderInfo, featureMeasurements:=featureMeasuredValues, _
                                         featureTraceability:=featureTraceabilityInfo)
             
     Call ThisWorkbook.populateAttrSheet(attFeatHeaders:=attFeatHeaders, attFeatResults:=attFeatResults, _
             attFeatTraceability:=attFeatTraceability, noResults:=resultsFailed, noTraceability:=noTraceability, noVariables:=noVariables)
+            
+    ExcelHelpers.CloseDataValWB
     Exit Sub
 wbErr:
+    ExcelHelpers.CloseDataValWB
     result = MsgBox("Could not set information to the workbook" & vbCrLf & "issue found at " & vbCrLf & Err.Description, vbCritical)
     Err.Raise Number:=vbObjectError + 1200
     
@@ -712,11 +773,16 @@ End Sub
 
 'Called by SetWorkbookInformation
     'Take the Global values for featureHeaderInfo, featureMeasuredValues, and featureTraceabilityInfo and slice out the attribute features
+    'Can test with... SS0245
     
     'Params
         'noVariables(byref Boolean) -> if true, then only attribute features exist in our feature arrays
 Private Sub SliceVariableInformation(ByRef noVariables As Boolean)
-    If (Not featureHeaderInfo) = -1 Or (Not featureMeasuredValues) = -1 Then Exit Sub
+    If (Not featureHeaderInfo) = -1 Then Exit Sub
+    If (Not featureMeasuredValues) = -1 Then
+        noVariables = True
+        Exit Sub
+    End If
     
     Dim varCols() As Variant
     Dim i As Integer
@@ -746,21 +812,25 @@ continue:
     'If this doesn't make sense, its because VBA slices arrays as though they were 1-indexed, and of course...
         'the ADODB library returns records as 0-indexed.
         'transposing the array twice returns the same array, but 1-indexed
-        'but we're also taking care create our temporary arrays as 1-indexed
+        'but we're also taking care to create our temporary arrays as 1-indexed
     varCols = Application.Transpose(Application.Transpose(varCols))
     
     
     Dim tempCols() As Variant
     tempCols = ExcelHelpers.nRange(1, UBound(featureMeasuredValues, 2) + 1) 'This should get each measurement taken.....
     Dim tempRow() As Variant
-    tempRow = Application.Transpose(Array(1, 2, 3, 4, 5, 6, 7))
+    tempRow = Application.Transpose(Array(1, 2, 3, 4, 5, 6, 7, 8, 9))
     
         'Get all the header information for the Variable columns
-    featureHeaderInfo = Application.index(featureHeaderInfo, Application.Transpose(Array(1, 2, 3, 4, 5, 6, 7)), varCols)
+        'Array -> Columns that we want to grab, in this case, everything
+        'varCols -> The rows of variable features
+    featureHeaderInfo = Application.index(featureHeaderInfo, Application.Transpose(Array(1, 2, 3, 4, 5, 6, 7, 8, 9)), varCols)
     
         'Get all the measurement information for the Variable columns
     varCols = ExcelHelpers.updateForPivotSlice(varCols)
     featureMeasuredValues = ExcelHelpers.fill_null(featureMeasuredValues)
+        'varCols -> the columns that represent our variable Features
+        'tempCols -> every single observation for those features
     featureMeasuredValues = Application.index(featureMeasuredValues, Application.Transpose(varCols), tempCols)
 End Sub
 

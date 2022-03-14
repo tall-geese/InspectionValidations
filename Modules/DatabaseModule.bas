@@ -154,7 +154,7 @@ End Sub
 Function GetJobInformation(JobID As String) As Variant()
     
     Set fso = New FileSystemObject
-    params = Array("jo.JobNum," & JobID, "jh.JobNum," & JobID)
+    params = Array("ld.JobNum," & JobID, "jh.JobNum," & JobID)
     query = fso.OpenTextFile(DataSources.QUERIES_PATH & "EpicorJobInfo.sql").ReadAll
     
     
@@ -240,10 +240,42 @@ JobOpErr:
 
 End Function
 
+Function IsParentJob(JobNumber As String) As Boolean
+    On Error GoTo ParentJobErr
+    Set fso = New FileSystemObject
+    params = Array("jh.JobNum," & JobNumber, "child.JobNum," & JobNumber)
+    query = fso.OpenTextFile(DataSources.QUERIES_PATH & "EpicorParentJob.sql").ReadAll
 
+    Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.E10)
+    
+    If UBound(sqlRecordSet.GetRows(), 2) > 0 Then IsParentJob = True  'If there is more than one row, then its a parent
+    
+    Exit Function
+    
+ParentJobErr:
+      'If Empty maybe JobNumber doesnt exist, but we did make
+    Err.Raise Number:=Err.Number, Description:="Func: E10-IsParentJob" & vbCrLf & Err.Description
 
+End Function
 
+    'Sum of all parts produced in primary operation. Exclude Job Adjustments
+Function GetParentProdQty(JobNumber As String) As Integer
+    On Error GoTo ParentProdQty
+    Set fso = New FileSystemObject
+    params = Array("ld.JobNum," & JobNumber, "jo.JobNum," & JobNumber)
+    query = fso.OpenTextFile(DataSources.QUERIES_PATH & "EpicorParentProdQty.sql").ReadAll
 
+    Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.E10)
+    
+    GetParentProdQty = sqlRecordSet.Fields(0).Value
+       
+    Exit Function
+    
+ParentProdQty:
+   'Job Number must not exist
+    Err.Raise Number:=Err.Number, Description:="Func: E10-GetParentProdQty" & vbCrLf & Err.Description
+
+End Function
 
 
 
@@ -252,11 +284,11 @@ End Function
 '               MeasurLink
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 
-Function GetFeatureHeaderInfo(jobNum As String, routine As String) As Variant()
+Function GetFeatureHeaderInfo(jobnum As String, routine As String) As Variant()
     On Error GoTo FeatureHeaderErr
     Set fso = New FileSystemObject
     query = fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_FeatureHeaderInfo.sql").ReadAll
-    params = Array("r.RunName," & jobNum, "rt.RoutineName," & routine)
+    params = Array("r.RunName," & jobnum, "rt.RoutineName," & routine)
     
     Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.ML7)
     
@@ -273,7 +305,7 @@ FeatureHeaderErr:
 End Function
 
     'Get observation values, filter out failures
-Function GetFeatureMeasuredValues(jobNum As String, routine As String, delimFeatures As String, featureInfo() As Variant) As Variant()
+Function GetFeatureMeasuredValues(jobnum As String, routine As String, delimFeatures As String, featureInfo() As Variant, Optional IS_FI_DIM As Boolean) As Variant()
 
     On Error GoTo FeatureValuesErr
     Set fso = New FileSystemObject
@@ -282,20 +314,31 @@ Function GetFeatureMeasuredValues(jobNum As String, routine As String, delimFeat
     Dim whereClause As String
     For i = 0 To UBound(featureInfo, 2)
         If featureInfo(6, i) = "Attribute" Then
+            If IS_FI_DIM Then GoTo nextFeat
+        
             'Filter out Attribute failures by column
-            whereClause = whereClause & "(Pvt.[" & featureInfo(0, i) & "] <> 1 OR Pvt.[" & featureInfo(0, i) & "] IS NULL)"
+            whereClause = whereClause & "(Pvt.[" & featureInfo(0, i) & "] <> 1 AND Pvt.[" & featureInfo(0, i) & "] IS NOT NULL)"
         Else
             'Filter out Variable failure by column
-            whereClause = whereClause & "(Pvt.[" & featureInfo(0, i) & "] <> 99.998 OR Pvt.[" & featureInfo(0, i) & "] IS NULL)"
+            whereClause = whereClause & "(Pvt.[" & featureInfo(0, i) & "] <> 99.998 AND Pvt.[" & featureInfo(0, i) & "] IS NOT NULL)"
         End If
         'if its the last statement, no need for the AND
         If i <> UBound(featureInfo, 2) Then
             whereClause = whereClause & " AND "
         End If
+nextFeat:
     Next i
+    
+        'Need to trim off the hanging AND in the event of FI_DIM
+        If IS_FI_DIM And featureInfo(6, UBound(featureInfo, 2)) = "Attribute" Then
+            whereClause = Left(whereClause, Len(whereClause) - 4)
+        End If
+    
+    
 
     query = query & whereClause
-    params = Array("r.RunName," & jobNum, "rt.RoutineName," & routine, "r.RunName," & jobNum, "rt.RoutineName," & routine)
+    Debug.Print (query)
+    params = Array("r.RunName," & jobnum, "rt.RoutineName," & routine, "r.RunName," & jobnum, "rt.RoutineName," & routine)
     
     Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.ML7)
 
@@ -313,11 +356,11 @@ FeatureValuesErr:
 End Function
 
     'Get all observation values, don't filter
-Function GetAllFeatureMeasuredValues(jobNum As String, routine As String, delimFeatures As String) As Variant()
+Function GetAllFeatureMeasuredValues(jobnum As String, routine As String, delimFeatures As String) As Variant()
     On Error GoTo AllFeatureValuesErr
     Set fso = New FileSystemObject
     query = Replace(Split(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_FeatureMeasurements.sql").ReadAll, ";")(1), "{Features}", delimFeatures)
-    params = Array("r.RunName," & jobNum, "rt.RoutineName," & routine, "r.RunName," & jobNum, "rt.RoutineName," & routine)
+    params = Array("r.RunName," & jobnum, "rt.RoutineName," & routine, "r.RunName," & jobnum, "rt.RoutineName," & routine)
     
     Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.ML7)
 
@@ -335,12 +378,17 @@ AllFeatureValuesErr:
 End Function
 
     'Date, Employee ID - Filter out failed observations
-Function GetFeatureTraceabilityData(jobNum As String, routine As String) As Variant()
+Function GetFeatureTraceabilityData(jobnum As String, routine As String, Optional FI_DIM_ROUTINE As Boolean) As Variant()
     On Error GoTo FeatureTraceabilityErr
     Set fso = New FileSystemObject
-    query = Split(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_ObsTraceability.sql").ReadAll, ";")(0)
-    params = Array("r.RunName," & jobNum, "rt.RoutineName," & routine, "r.RunName," & jobNum, "rt.RoutineName," & routine)
     
+    If FI_DIM_ROUTINE Then
+        query = Split(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_ObsTraceability.sql").ReadAll, ";")(2)
+        params = Array("r.RunName," & jobnum, "rt.RoutineName," & routine, "r.RunName," & jobnum, "rt.RoutineName," & routine)
+    Else
+        query = Split(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_ObsTraceability.sql").ReadAll, ";")(0)
+        params = Array("r.RunName," & jobnum, "rt.RoutineName," & routine, "r.RunName," & jobnum, "rt.RoutineName," & routine, "r.RunName," & jobnum, "rt.RoutineName," & routine)
+    End If
     Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.ML7)
 
     GetFeatureTraceabilityData = sqlRecordSet.GetRows()
@@ -357,11 +405,11 @@ FeatureTraceabilityErr:
 End Function
 
     'Date, Employee ID - Dont Filter out failed observations
-Function GetAllFeatureTraceabilityData(jobNum As String, routine As String) As Variant()
+Function GetAllFeatureTraceabilityData(jobnum As String, routine As String) As Variant()
     On Error GoTo AllFeatureTraceabilityErr
     Set fso = New FileSystemObject
     query = Split(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_ObsTraceability.sql").ReadAll, ";")(1)
-    params = Array("r.RunName," & jobNum, "rt.RoutineName," & routine, "r.RunName," & jobNum, "rt.RoutineName," & routine)
+    params = Array("r.RunName," & jobnum, "rt.RoutineName," & routine, "r.RunName," & jobnum, "rt.RoutineName," & routine, "r.RunName," & jobnum, "rt.RoutineName," & routine)
     
     Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.ML7)
 
@@ -380,11 +428,11 @@ End Function
 
 'Final Attribute Data Collection
 'TODO: test if this would throw an erorr if the routine was never created yet
-Function GetFinalAttrHeaders(jobNum As String, routine As String) As Variant()
+Function GetFinalAttrHeaders(jobnum As String, routine As String) As Variant()
     On Error GoTo GetFinalAttrHeadersErr
     Set fso = New FileSystemObject
     query = fso.OpenTextFile(DataSources.QUERIES_PATH & "Final_Attr_Headers.sql").ReadAll
-    params = Array("r.RunName," & jobNum, "rt.RoutineName," & routine)
+    params = Array("r.RunName," & jobnum, "rt.RoutineName," & routine)
     
     Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.ML7)
 
@@ -401,11 +449,11 @@ GetFinalAttrHeadersErr:
     End If
 End Function
 
-Function GetFinalAttrResults(jobNum As String, routine As String) As Variant()
+Function GetFinalAttrResults(jobnum As String, routine As String) As Variant()
     On Error GoTo GetFinalAttrResultsErr
     Set fso = New FileSystemObject
     query = fso.OpenTextFile(DataSources.QUERIES_PATH & "Final_Attr_Results.sql").ReadAll
-    params = Array("r.RunName," & jobNum, "rt.RoutineName," & routine)
+    params = Array("r.RunName," & jobnum, "rt.RoutineName," & routine)
     
     Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.ML7)
 
@@ -422,11 +470,11 @@ GetFinalAttrResultsErr:
     End If
 End Function
 
-Function GetFinalAttrTraceability(jobNum As String, routine As String) As Variant()
+Function GetFinalAttrTraceability(jobnum As String, routine As String) As Variant()
     On Error GoTo GetFinalAttrTraceabilityErr
     Set fso = New FileSystemObject
     query = fso.OpenTextFile(DataSources.QUERIES_PATH & "Final_Attr_Traceability.sql").ReadAll
-    params = Array("r.RunName," & jobNum, "rt.RoutineName," & routine)
+    params = Array("r.RunName," & jobnum, "rt.RoutineName," & routine)
     
     Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.ML7)
 
@@ -493,11 +541,11 @@ PartRoutineListErr:
 End Function
 
     'All the routines created for this run
-Function GetRunRoutineList(jobNum As String) As Variant()
+Function GetRunRoutineList(jobnum As String) As Variant()
     On Error GoTo RunRoutineListErr
     Set fso = New FileSystemObject
     query = fso.OpenTextFile(DataSources.QUERIES_PATH & "RunRoutineList.sql").ReadAll
-    params = Array("r.RunName," & jobNum)
+    params = Array("r.RunName," & jobnum)
 
     Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.ML7)
     
@@ -528,17 +576,17 @@ End Function
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 
     'Customer name field in Epicor is often wrong, we need to translate it
-Function GetCustomerName(jobNum As String) As String
+Function GetCustomerName(jobnum As String) As String
 
     Dim searchParam As String
     Dim jobInfo() As Variant
 
     'If our job is an inventory job like 'NVxxx' then, we can just search by the first two characters
-    If Len(jobNum) > 2 And Not IsNumeric(Left(jobNum, 1)) And Not IsNumeric(Mid(jobNum, 2, 1)) Then
-        If Left(jobNum, 2) = "ME" Or Left(jobNum, 2) = "QA" Then
+    If Len(jobnum) > 2 And Not IsNumeric(Left(jobnum, 1)) And Not IsNumeric(Mid(jobnum, 2, 1)) Then
+        If Left(jobnum, 2) = "ME" Or Left(jobnum, 2) = "QA" Or (Left(jobnum, 1) = "R" And Not IsNumeric(Mid(jobnum, 3, 1))) Then
             GoTo 10
         Else
-            searchParam = Left(jobNum, 2)
+            searchParam = Left(jobnum, 2)
             GoTo 20
         End If
         
@@ -546,7 +594,7 @@ Function GetCustomerName(jobNum As String) As String
     
 10
     'Otherwise use the incorrect "customer" name they put in the project database
-    jobInfo = GetJobInformation(JobID:=jobNum)
+    jobInfo = GetJobInformation(JobID:=jobnum)
     searchParam = jobInfo(4, 0)
 20
     On Error GoTo CustomerNameErr

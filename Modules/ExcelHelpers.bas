@@ -7,6 +7,10 @@ Attribute VB_Name = "ExcelHelpers"
 '       2. CreateEmail - to the cell lead / QC manager as applicable. Generate table of failed routines and why they failed
 '*************************************************************************************************
 
+Private valWB As Workbook
+Private valLookupRange As Range
+Private valRtRange As Range
+
 
 Public Function GetAQL(customer As String, drawNum As String, ProdQty As Integer) As String()
     Dim partWb As Workbook
@@ -40,13 +44,14 @@ Public Function GetAQL(customer As String, drawNum As String, ProdQty As Integer
     aqlVal = partWb.Worksheets("ML Frequency Chart").Range("B7").Value
     If aqlVal = "" Then GoTo WbReadErr
     
-    If aqlVal = "100%" Then
+    If aqlVal = "100%" Or ProdQty = 1 Then
         returnAQL(0) = CStr(ProdQty)
         returnAQL(1) = "100%"
+        GetAQL = returnAQL
         Exit Function
     End If
         
-    Set aqlWB = Workbooks.Open(Filename:="\\JADE76\IQS Documents\Current\IR Tables.xlsx", UpdateLinks:=0, ReadOnly:=True)
+    Set aqlWB = Workbooks.Open(Filename:=DataSources.IR_TABLES_WB, UpdateLinks:=0, ReadOnly:=True)
     
     
     Select Case ProdQty
@@ -121,7 +126,7 @@ WbReadErr:
 End Function
 
 
-Public Sub CreateEmail(qcManager As Boolean, cellLead As Boolean, pmodManager As Boolean, cellLeadEmail As String, jobNum As String, machine As String, failInfo() As Variant)
+Public Sub CreateEmail(qcManager As Boolean, cellLead As Boolean, pmodManager As Boolean, cellLeadEmail As String, jobnum As String, machine As String, failInfo() As Variant)
     Dim oApp As Outlook.Application
     Dim myMail As Outlook.MailItem
     Dim HTMLContent As String
@@ -141,7 +146,7 @@ Public Sub CreateEmail(qcManager As Boolean, cellLead As Boolean, pmodManager As
             .To = .To & ";" & DataSources.PMODMAN_TO
         End If
         
-        .Subject = Replace(DataSources.EMAIL_SUBJECT, "{Job}", jobNum)
+        .Subject = Replace(DataSources.EMAIL_SUBJECT, "{Job}", jobnum)
         .Subject = Replace(.Subject, "{Machine}", machine)
         
         HTMLContent = DataSources.EMAIL_BODY_HEADER
@@ -232,6 +237,31 @@ Public Function fill_null(inputArr() As Variant) As Variant()
     Next i
     fill_null = inputArr
 End Function
+
+
+
+'Handle Getting Alternate names for Inspection Methods to fit within our cell format
+
+Public Sub OpenDataValWB()
+    Set valWB = Workbooks.Open(Filename:=DataSources.DATA_VAL_WB, UpdateLinks:=False, ReadOnly:=True)
+    With valWB.Worksheets("InspMethods")
+        Set valLookupRange = .Range("A2:A" & .Range("A2").End(xlDown).row)
+        Set valRtRange = .Range("B2:B" & .Range("A2").End(xlDown).row)
+    
+'        Set valLookupRange = .Range(DataSources.DATA_VAL_WB_LOOKUP)
+'        Set valRtRange = .Range(DataSources.DATA_VAL_WB_RT)
+    End With
+End Sub
+
+Public Function GetShortHandMethod(inspMeth As Variant) As String
+    GetShortHandMethod = Application.WorksheetFunction.XLookup(inspMeth, valLookupRange, valRtRange, CStr(inspMeth), 0)
+End Function
+
+
+Public Sub CloseDataValWB()
+    valWB.Close SaveChanges:=False
+    Set valWB = Nothing
+End Sub
 
 
 

@@ -55,7 +55,7 @@ Private Sub UserForm_Initialize()
     
     Call SetActivePrinter
     
-    Me.ProdQty.Caption = Format(RibbonCommands.ProdQty, "#,###")
+    Me.ProdQty.Caption = format(RibbonCommands.ProdQty, "#,###")
 
     'Set the required routines for the part
     'Also set the required observations for the routine
@@ -91,6 +91,21 @@ Private Sub UserForm_Initialize()
             
             'FA and IP routines (machining)
             If (InStr(routineType, "FA_") > 0) Or (InStr(routineType, "IP_") > 0) Then
+                'Specially Handle Child Jobs. Only an FA_FIRST requires inspections
+                
+                'NextObsReq
+                If RibbonCommands.IsChildJob Then
+                    If (InStr(routineType, "FIRST") > 0) Then
+                        .Caption = "1"
+                        .Visible = True
+                    Else
+                        .Caption = "0"
+                        .Visible = False
+                    End If
+                
+                    GoTo NextObsReq
+                End If
+                
                 Dim level As Integer
                 Dim setupType As String
                 If (Not routineCreated) Then 'If the routine wasnt created
@@ -117,6 +132,7 @@ ShouldExist:
                 Else
                     setupType = RibbonCommands.runRoutineList(3, routineIndex) 'If the routine does exist, just grab the setup type info
                 End If
+'FA and IP Routines
 10
                 If (InStr(routineType, "FIRST") > 0) Then
                     If (setupType = "Full") Then
@@ -126,7 +142,7 @@ ShouldExist:
                         .Caption = "0"
                         .Visible = False
                     End If
-
+                    
                 ElseIf (InStr(routineType, "FA_SYLVAC") > 0 Or InStr(routineType, "FA_CMM") > 0 Or InStr(routineType, "FA_RAMPROG") > 0) Then
                     If (setupType = "Full") Then
                         .Caption = "1"
@@ -135,7 +151,7 @@ ShouldExist:
                         .Caption = "0"
                         .Visible = False
                     End If
-                
+                    
                 ElseIf (InStr(routineType, "FA_MINI") > 0) Then
                     If (setupType = "Mini") Then
                         .Caption = "2"
@@ -144,7 +160,7 @@ ShouldExist:
                         .Caption = "0"
                         .Visible = False
                     End If
-                
+                    
                 ElseIf (InStr(routineType, "FA_VIS") > 0) Then
                     If (setupType = "None") Then
                         .Caption = "2"
@@ -153,7 +169,7 @@ ShouldExist:
                         .Caption = "0"
                         .Visible = False
                     End If
-                
+                    
                 ElseIf (InStr(routineType, "IP_1XSHIFT") > 0) Then
                     level = GetMachiningLevel(fullRoutine)
                     .Caption = DatabaseModule.Get1XSHIFTInsps(JobID:=RibbonCommands.jobNumUcase, Operation:=RibbonCommands.partOperations(1, level))
@@ -169,11 +185,18 @@ ShouldExist:
                 
                 Else
                     'Anything not covered above should be AQL quantity
-                    .Caption = GetAQL(customer:=RibbonCommands.customer, drawNum:=RibbonCommands.drawNum, _
-                                            ProdQty:=RibbonCommands.ProdQty)
+                    If RibbonCommands.IsParentJob Then  'Parent jobs should have AQL based off parts made, not just what we have
+                        .Caption = GetAQL(customer:=RibbonCommands.customer, drawNum:=RibbonCommands.drawNum, _
+                                                ProdQty:=DatabaseModule.GetParentProdQty(JobNumber:=RibbonCommands.jobNumUcase))
+                    Else
+                        .Caption = GetAQL(customer:=RibbonCommands.customer, drawNum:=RibbonCommands.drawNum, _
+                                                ProdQty:=RibbonCommands.ProdQty)
+                    
+                    End If
                     .Visible = True
                 End If
                 
+'FI Routines
             ElseIf InStr(routineType, "FI_") > 0 Then
                 If (InStr(routineType, "FI_VIS") > 0) Then
                     .Caption = "1"
@@ -184,7 +207,8 @@ ShouldExist:
                         .Caption = "1"
                     Else
                         .Caption = GetAQL(customer:=RibbonCommands.customer, drawNum:=RibbonCommands.drawNum, _
-                                            ProdQty:=RibbonCommands.ProdQty)
+                                        ProdQty:=RibbonCommands.ProdQty)
+                        
                     End If
                     .Visible = True
 '                ElseIf (InStr(routineType, "FI_OP") > 0) Then
@@ -343,7 +367,7 @@ Nexti:
     Next i
         
     Call ExcelHelpers.CreateEmail(qcManager:=qcManagerAlertReq, pmodManager:=pmodManagerAlertReq, cellLead:=cellLeadAlertReq, cellLeadEmail:=cellLeadEmail, _
-                                    jobNum:=RibbonCommands.jobNumUcase, machine:=machineList, failInfo:=failedRoutines)
+                                    jobnum:=RibbonCommands.jobNumUcase, machine:=machineList, failInfo:=failedRoutines)
 
 End Sub
 
@@ -483,22 +507,33 @@ End Sub
     'Wrapper for ExcelHelper.GetAQL()
     'stores the values that we find in RibbonCommands reduce redundant queries
 Private Function GetAQL(customer As String, drawNum As String, ProdQty As Integer) As String
-    If RibbonCommands.samplingSize = vbNullString Then
+    If (RibbonCommands.samplingSize = vbNullString And RibbonCommands.custAQL = vbNullString) Or RibbonCommands.IsParentJob Then
         Dim aqlValues() As String
-        aqlValues = ExcelHelpers.GetAQL(customer:=RibbonCommands.customer, drawNum:=RibbonCommands.drawNum, _
-                                                ProdQty:=RibbonCommands.ProdQty)
-        Me.AQL.Caption = Format(aqlValues(1), "0.00")
+        aqlValues = ExcelHelpers.GetAQL(customer:=customer, drawNum:=drawNum, ProdQty:=ProdQty)
+        
+        If aqlValues(1) = "100%" Then
+            Me.AQL.Caption = "100%"
+        Else
+            Me.AQL.Caption = format(aqlValues(1), "0.00")
+        End If
         
         RibbonCommands.samplingSize = aqlValues(0)
         RibbonCommands.custAQL = aqlValues(1)
         
         GetAQL = aqlValues(0)
     Else
+        If RibbonCommands.custAQL = "100%" Then
+            Me.AQL.Caption = "100%"
+        Else
+            Me.AQL.Caption = format(RibbonCommands.custAQL, "0.00")
+        End If
         GetAQL = RibbonCommands.samplingSize
     End If
 
     
 End Function
+
+
 
 
 

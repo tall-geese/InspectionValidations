@@ -16,7 +16,7 @@ Attribute VB_Exposed = True
 '               populateHeaderFeatureInfo(), populateFeatureMeasuredValues(), populateTraceabilityInfo()
 '*************************************************************************************************
 
-Sub populateJobHeaders(jobNum As String, routine As Variant, customer As String, machine As Variant, partNum As String, rev As String, partDesc As String)
+Sub populateJobHeaders(jobnum As String, routine As Variant, customer As String, machine As Variant, partNum As String, rev As String, partDesc As String)
     On Error GoTo PopHeadersErr:
     Call Cleanup
     
@@ -28,7 +28,7 @@ Sub populateJobHeaders(jobNum As String, routine As Variant, customer As String,
     With Worksheets("PAGE 1")
         .Unprotect Password:="3063bqa"
         
-        .Range("C1").Value = jobNum
+        .Range("C1").Value = jobnum
         .Range("C2").Value = routine
         .Range("C3").Value = customer
         .Range("C4").Value = machine
@@ -81,8 +81,21 @@ End Sub
 
 Public Sub populateAttrSheet(attFeatHeaders() As Variant, attFeatResults() As Variant, attFeatTraceability() As Variant, _
                                 noResults As Boolean, noTraceability As Boolean, noVariables As Boolean)
+    'attFeatHeaders(0,i) -> Balloon Num
+    'attFeatHeaders(1,i) -> Description
+    'attFeatHeaders(2,i) -> Attr Tolerance
+    'attFeatHeaders(3,i) -> Frequency
+    'attFeatHeaders(4,i) -> Inspection Method
+    'attFeatHeaders(5,i) -> Feature Name
     
-    'Explain the dimensions of the 3 parameters here
+    'attFeatResults(0,0) -> 0 [Pass] / 1 [Fail]
+    'attFeatResults(1,0) -> Feature Count
+    
+    'attFeatTraceability(0,i) -> Feature Name
+    'attFeatTraceability(1,i) -> Employee Num
+    'attFeatTraceability(2,i) -> DateTime
+    
+    
     
     On Error GoTo attSheetErr:
     If (Not attFeatHeaders) = -1 Or (Not attFeatTraceability) = -1 Then Exit Sub
@@ -101,20 +114,15 @@ Public Sub populateAttrSheet(attFeatHeaders() As Variant, attFeatResults() As Va
             .Range("B" & 11 + i).Value = attFeatHeaders(1, i) 'Char. Description
             .Range("E" & 11 + i).Value = attFeatHeaders(2, i) 'Tolerance
             
-            If Trim(attFeatHeaders(3, i)) = "100%" Or Trim(attFeatHeaders(3, i)) = "FAI & 100%" Then
-                .Range("H" & 11 + i).Value = "100%" 'AQL
+            If RibbonCommands.samplingSize >= RibbonCommands.ProdQty Then
+                .Range("H" & 11 + i).Value = format(RibbonCommands.custAQL, "0.00") ''AQL
                 .Range("I" & 11 + i).Value = "100%" 'SamplingSize
             Else
-                If RibbonCommands.samplingSize >= RibbonCommands.ProdQty Then
-                    .Range("H" & 11 + i).Value = Format(RibbonCommands.custAQL, "0.00") ''AQL
-                    .Range("I" & 11 + i).Value = "100%" 'SamplingSize
-                Else
-                    .Range("H" & 11 + i).Value = Format(RibbonCommands.custAQL, "0.00") 'AQL
-                    .Range("I" & 11 + i).Value = RibbonCommands.samplingSize 'SamplingSize
-                End If
+                .Range("H" & 11 + i).Value = format(RibbonCommands.custAQL, "0.00") 'AQL
+                .Range("I" & 11 + i).Value = RibbonCommands.samplingSize 'SamplingSize
             End If
             
-            .Range("G" & 11 + i).Value = attFeatHeaders(4, i) 'GaugeID
+            .Range("G" & 11 + i).Value = ExcelHelpers.GetShortHandMethod(attFeatHeaders(4, i)) 'Inspection Method
         
             If noResults Then
                 .Range("J" & 11 + i).Value = "Fail" 'Result
@@ -159,8 +167,10 @@ Private Sub populateHeaderFeatureInfo(featureInfo() As Variant)
     'featureInfo(4,i) -> Upper Tolerance
     'featureInfo(5,i) -> Gauge ID
     'featureInfo(6,i) -> Variable / Attribute
+    'featureInfo(7,i) -> Attribute Tolerance
     
     On Error GoTo FeatureHeadersErr
+    
     
     For i = LBound(featureInfo, 2) To UBound(featureInfo, 2)
             Dim activePageNum As Integer
@@ -171,26 +181,26 @@ Private Sub populateHeaderFeatureInfo(featureInfo() As Variant)
                 Dim colLetter As String
                 colLetter = ExcelHelpers.GetAddress(((i - LBound(featureInfo, 2)) Mod 8) + 5)
                 
-                Dim ballHeader As String
-                ballHeader = featureInfo(0 + LBound(featureInfo, 1), i)
-                'If its a numeric balloon number, we should re-format it to be human-readable
-                If (Mid(ballHeader, 2, 1) = "_") And IsNumeric(Right(ballHeader, 1)) Then
-                    If (CInt(Right(ballHeader, 2))) > 0 Then
-                        Dim featureNum As String
-                        featureNum = Split(ballHeader, "_")(1)
-                        For j = 0 To Len(featureNum)
-                            If Mid(featureNum, j + 1, 1) <> 0 Then Exit For
-                        Next j
-                        featureNum = Right(featureNum, Len(featureNum) - j)
-                        .Range(colLetter & "9").Value = featureNum & "_" & Split(ballHeader, "_")(2)
-                    Else
-                        .Range(colLetter & "9").Value = Split(ballHeader, "_")(1)
-                    End If
-                Else
-                    .Range(colLetter & "9").Value = ballHeader 'Balloon
-                End If
-                
-                
+'                Dim ballHeader As String
+'                ballHeader = featureInfo(0 + LBound(featureInfo, 1), i)
+'                'If its a numeric balloon number, we should re-format it to be human-readable
+'                If (Mid(ballHeader, 2, 1) = "_") And IsNumeric(Right(ballHeader, 1)) Then
+'                    If (CInt(Right(ballHeader, 2))) > 0 Then
+'                        Dim featureNum As String
+'                        featureNum = Split(ballHeader, "_")(1)
+'                        For j = 0 To Len(featureNum)
+'                            If Mid(featureNum, j + 1, 1) <> 0 Then Exit For
+'                        Next j
+'                        featureNum = Right(featureNum, Len(featureNum) - j)
+'                        .Range(colLetter & "9").Value = featureNum & "_" & Split(ballHeader, "_")(2)
+'                    Else
+'                        .Range(colLetter & "9").Value = Split(ballHeader, "_")(1)
+'                    End If
+'                Else
+'                    .Range(colLetter & "9").Value = ballHeader 'Balloon
+'                End If
+
+                .Range(colLetter & "9").Value = featureInfo(8 + LBound(featureInfo, 1), i) 'Balloon
                 .Range(colLetter & "10").Value = featureInfo(1 + LBound(featureInfo, 1), i) 'Description
                 
                 If featureInfo(6 + LBound(featureInfo, 1), i) = "Variable" Then
@@ -198,13 +208,26 @@ Private Sub populateHeaderFeatureInfo(featureInfo() As Variant)
                     .Range(colLetter & "17").Value = featureInfo(3 + LBound(featureInfo, 1), i) 'Target
                     .Range(colLetter & "18").Value = featureInfo(4 + LBound(featureInfo, 1), i) 'UTol
                 Else
-                    .Range(colLetter & "16").Value = "N/A" 'LTol
-                    .Range(colLetter & "17").Value = "N/A" 'Target
-                    .Range(colLetter & "18").Value = "N/A" 'UTol
-                
+                    'TODO, if the featureInfo(7,i) <> "NA" then  we should attempt to evaluate it and split it
+                        ' as well as find the target value. will need to find the sig digs
+                        'and the boolean of a leading digit for this.
+                    If featureInfo(7, i) = "NA" Then
+                        .Range(colLetter & "16").Value = "N/A" 'LTol
+                        .Range(colLetter & "17").Value = "N/A" 'Target
+                        .Range(colLetter & "18").Value = "N/A" 'UTol
+                    Else
+                        Dim attTol() As Variant
+                        attTol = SplitAttrTol(featureInfo(7, i))
+                        .Range(colLetter & "16").Value = attTol(0) 'LTol
+                        .Range(colLetter & "17").Value = attTol(1) 'Target
+                        .Range(colLetter & "18").Value = attTol(2) 'UTol
+                        'Also, log what we put in and what we put out
+'                        Debug.Print ("input -> " & vbTab & featureInfo(7, i))
+'                        Debug.Print ("output -> " & vbTab & attTol(0) & vbTab & attTol(1) & vbTab & attTol(2))
+                    End If
                 End If
                 
-                .Range(colLetter & "19").Value = featureInfo(5 + LBound(featureInfo, 1), i) 'Gauge
+                .Range(colLetter & "19").Value = ExcelHelpers.GetShortHandMethod(featureInfo(5 + LBound(featureInfo, 1), i)) 'Inpsection Method
                 .Range(colLetter & "8").Value = featureInfo(6 + LBound(featureInfo, 1), i) 'Variable / Attribute  (hidden cell for later reference)
             End With
     Next i
@@ -212,6 +235,7 @@ Private Sub populateHeaderFeatureInfo(featureInfo() As Variant)
     Exit Sub
     
 FeatureHeadersErr:
+    ExcelHelpers.CloseDataValWB
     Err.Raise Number:=Err.Number, Description:="sub: populateHeaderFeatureInfo" & vbCrLf & Err.Description
 End Sub
 
@@ -326,6 +350,8 @@ Private Sub Cleanup()
     'Reset the Header information on Page 1
     With Worksheets("PAGE 1")
         .Unprotect Password:="3063bqa"
+        
+        .PageSetup.RightHeader = vbNullString
 
         .Range("C1").Value = ""
         .Range("C2").Value = ""
@@ -347,6 +373,8 @@ Private Sub Cleanup()
             If .Visible = True Then
                 .Activate
                 .Unprotect Password:="3063bqa"
+                
+                .PageSetup.RightHeader = vbNullString
             
                 'Clean Data/Employee Information
                 With Range("A22:C121")
@@ -383,6 +411,8 @@ Private Sub Cleanup()
     'Reset the PAGE_Attr sheet
     With Worksheets("PAGE_Attr")
         .Unprotect Password:="3063bqa"
+        
+        .PageSetup.RightHeader = vbNullString
     
         With .Range("A11:L117")
             .Value = ""
@@ -407,16 +437,137 @@ End Sub
 '               Extra Functions
 '****************************************************************************************
 
+
+Private Function SplitAttrTol(inpAttrTol As Variant, Optional featureName As String) As Variant()
+    Dim attrTol As String
+    Dim tolRange() As String
+    Dim numDec As Integer
+    Dim hasLeadingChar As Boolean
+    Dim outFormat As String
+    
+    On Error GoTo SplitAttrErr
+    
+    attrTol = Replace(inpAttrTol, " ", "") 'Repalce whitespace
+    
+    If UCase(inpAttrTol) Like "*MAX*" Then
+        inpAttrTol = Replace(inpAttrTol, "MAX", "")
+        SplitAttrTol = Array("N/A", "N/A", inpAttrTol)
+        Exit Function
+    ElseIf UCase(inpAttrTol) Like "*MIN*" Then
+        inpAttrTol = Replace(inpAttrTol, "MIN", "")
+        SplitAttrTol = Array(inpAttrTol, "N/A", "N/A")
+        Exit Function
+    End If
+    
+    
+    Dim i As Integer
+        'Walk through and detect
+    For i = 1 To Len(attrTol)
+        Dim char As String
+        char = Mid(attrTol, i, 1)
+        If Not (IsNumeric(char) Or char = "." Or char = "/") Then
+            'Its something that we cant process, so lets just return "NA"s
+            SplitAttrTol = Array("N/A", "N/A", "N/A")
+            Exit Function
+        End If
+    Next i
+    
+    tolRange = Split(attrTol, "/")
+    
+    numDec = Application.WorksheetFunction.Max(GetDecimalPlaces(tolRange(0), hasLeadingChar), GetDecimalPlaces(tolRange(1), hasLeadingChar))
+    outFormat = GenFormat(numDec, hasLeadingChar)
+    
+    'Maybe another error handling here
+    Dim calcTarget As Double
+    Dim outStr As String
+    calcTarget = Application.WorksheetFunction.Round((CDbl(tolRange(0)) + CDbl(tolRange(1))) / 2, numDec)
+    
+        'If the avg is the same as either Tolerance bound because both are only a single unit apart of the lowest significant digit
+            'Then extend the format out another sigDig to show the difference
+    If (CStr(calcTarget) = tolRange(0) Or CStr(calcTarget) = tolRange(1)) And InStr(outFormat, ".") > 0 Then
+        calcTarget = Application.WorksheetFunction.Round((CDbl(tolRange(0)) + CDbl(tolRange(1))) / 2, numDec + 1)
+        outFormat = outFormat & "0"
+    End If
+    outStr = format(CStr(calcTarget), outFormat)
+    
+    SplitAttrTol = Array(tolRange(0), outStr, tolRange(1))
+
+    Exit Function
+    
+SplitAttrErr:
+    'Just return the default values, we couldn't parse here
+    SplitAttrTol = Array("N/A", "N/A", "N/A")
+    
+    'TODO: Dont want to interrupt the current user with a msg, especially since this would happen during printing.
+    'We should setup some kind of logging service that will keep track, passing in the inpAttrTol, the featureName and
+        'Getting the RibbonCommands.jobNumUCase , customer and partNum as well. From there it can be narrowed down
+End Function
+
+
+Private Function GetDecimalPlaces(val As String, ByRef leadingChar As Boolean) As Integer
+    Dim location As Integer
+    location = InStr(val, ".")
+    If location = 0 Then
+        GetDecimalPlaces = 0
+        Exit Function
+    End If
+        'If the "." is not the first character then we have leading characters in this value
+    If location > 1 Then leadingChar = True
+
+    GetDecimalPlaces = Len(val) - location
+End Function
+
+
+Private Function GenFormat(sigDig As Integer, hasLeadingChar As Boolean) As String
+    Dim format As String
+    If hasLeadingChar Then
+        format = "0"
+    Else
+        format = "#"
+    End If
+    
+    If sigDig = 0 Then
+        GenFormat = format
+        Exit Function
+    End If
+    
+    format = format & "."
+    
+    Dim i As Integer
+    For i = 1 To sigDig
+        format = format & "0"
+    Next i
+    
+    GenFormat = format
+End Function
+
+Sub test_Header()
+    Worksheets("PAGE 1").PageSetup.RightHeader = vbCrLf & "Page &P of " & Worksheets("PAGE 1").Range("K4").Value
+
+
+
+End Sub
+
 Public Sub PrintResults()
 
     Dim endPage As Integer
     'we set a hidden value at this cell to tell us how many pages needed to print
     endPage = CInt(Worksheets("PAGE 1").Range("L4").Value)
     
+    
     For Each Sheet In Worksheets
         'Defaults to printing to the ActivePrinter which the user can choose to set in the Settings tab
         If Sheet.Visible = True Then
-            Sheet.Printout From:=1, To:=endPage, Collate:=True
+            If Sheet.Name = "PAGE_Attr" Then
+                'The attr sheet increments pages by featureCount, not observation count
+                Dim attEnd As Integer
+                attEnd = CInt(Sheet.Range("L4").Value)
+                Sheet.PageSetup.RightHeader = vbCrLf & "Page &P of " & attEnd
+                Sheet.Printout From:=1, To:=attEnd, Collate:=True
+            Else
+                Sheet.PageSetup.RightHeader = vbCrLf & "Page &P of " & endPage
+                Sheet.Printout From:=1, To:=endPage, Collate:=True
+            End If
         End If
     Next Sheet
 

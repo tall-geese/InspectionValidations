@@ -2,7 +2,7 @@
 	--Should return header information even if only gauge information is entered
 	--Otherwise the results should be the same, but GageName column will be NULL values
 ---------------------------
-SELECT DISTINCT cfv5.ValueString, cfv.ValueString[Characteristic Desc], cfv2.ValueString[Tool/Tolernace], cfv3.ValueString[Frequency], cfv4.ValueString[Insp Method]
+SELECT DISTINCT cfv5.ValueString, cfv.ValueString[Characteristic Desc], cfv2.ValueString[Tool/Tolernace], cfv3.ValueString[Frequency], cfv4.ValueString[Insp Method], f.FeatureName
 FROM dbo.FeatureRun fr 
 INNER JOIN dbo.Feature f ON F.FeatureID = fr.FeatureID 
 INNER JOIN dbo.Run r ON fr.RunID = r.RunID 
