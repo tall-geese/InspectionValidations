@@ -8,5 +8,5 @@ SELECT rt.RoutineName,
 		WHEN r.RunStatus = 260 THEN 'Signed'
 	END AS [RunStatus]
 FROM dbo.Run r
-LEFT OUTER JOIN dbo.Routine rt ON r.RoutineID = rt.RoutineID 
+INNER JOIN dbo.Routine rt ON r.RoutineID = rt.RoutineID 
 WHERE r.RunName = ?
