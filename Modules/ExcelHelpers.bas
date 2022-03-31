@@ -12,14 +12,15 @@ Private valLookupRange As Range
 Private valRtRange As Range
 
 
-Public Function GetAQL(customer As String, drawNum As String, ProdQty As Integer) As String()
+Public Function GetAQL(customer As String, drawNum As String, ProdQty As Integer, Optional isShortRunEnabled As Boolean) As String()
     Dim partWb As Workbook
     Dim aqlWB As Workbook
     Dim aqlVal As String
     Dim reqQty As String
     Dim row As String
     Dim col As Integer
-    Dim returnAQL(2) As String
+    Dim returnAQL() As String
+    ReDim Preserve returnAQL(1)
 
     prefixPath = "J:\Inspection Reports\" & customer & "\" & drawNum & "\" & "Current Revision\"
     
@@ -67,27 +68,31 @@ Public Function GetAQL(customer As String, drawNum As String, ProdQty As Integer
             row = "6"
         Case 26 To 30
             row = "7"
-        Case 31 To 50
+        Case 31 To 35
             row = "8"
-        Case 51 To 90
+        Case 36 To 50
             row = "9"
-        Case 91 To 150
+        Case 51 To 90
             row = "10"
-        Case 151 To 280
+        Case 91 To 150
             row = "11"
-        Case 281 To 500
+        Case 151 To 280
             row = "12"
-        Case 501 To 1200
+        Case 281 To 500
             row = "13"
-        Case 1201 To 3200
+        Case 501 To 1200
             row = "14"
-        Case 3201 To 32000
+        Case 1201 To 3200
             row = "15"
+        Case 3201 To 10000
+            row = "16"
+        Case 10001 To 99999
+            row = "17"
         Case Else
             GoTo ProdQtyErr
     End Select
     
-    With aqlWB.Worksheets("AQL")
+    With aqlWB.Worksheets("AQL_SmallLot")
         col = Application.WorksheetFunction.Match(CDbl(aqlVal), .Range("A1:J1"), 0)
         reqQty = .Range(GetAddress(col) & row).Value
     End With
@@ -101,7 +106,21 @@ Public Function GetAQL(customer As String, drawNum As String, ProdQty As Integer
     End If
     returnAQL(1) = aqlVal
     
+    If isShortRunEnabled Then
+        ReDim Preserve returnAQL(3)
+        On Error GoTo LowerBoundErr
+        
+        With partWb.Worksheets("ML Frequency Chart")
+            returnAQL(2) = .Range("N14").Value
+            returnAQL(3) = .Range("R14").Value
+        End With
+    
+    End If
+    
+    
     GetAQL = returnAQL
+    
+    'TODO: takke the change here to set the
     
     GoTo 10
     
@@ -119,6 +138,11 @@ FileDirErr:
 WbReadErr:
     result = MsgBox("There was a problem when trying to read the AQL Level defined on the ML Frequency Chart Worksheet" & _
                     vbCrLf & "Please let a QE know to fill this value in" & vbCrLf & Err.Description, vbExclamation)
+    GoTo 10
+LowerBoundErr:
+    MsgBox "This DrawingNumber was set as LowerBound Frequency Enabled" & vbCrLf & "But Couldn't access the Cutoff amount of Inspections Due" _
+                & vbCrLf & "Please Have a QE fix the IR", vbCritical
+                    
 10
     partWb.Close SaveChanges:=False
     Application.ScreenUpdating = True
@@ -248,8 +272,6 @@ Public Sub OpenDataValWB()
         Set valLookupRange = .Range("A2:A" & .Range("A2").End(xlDown).row)
         Set valRtRange = .Range("B2:B" & .Range("A2").End(xlDown).row)
     
-'        Set valLookupRange = .Range(DataSources.DATA_VAL_WB_LOOKUP)
-'        Set valRtRange = .Range(DataSources.DATA_VAL_WB_RT)
     End With
 End Sub
 

@@ -631,3 +631,32 @@ GetEmailErr:
 End Function
 
 
+Function GetFlaggedShortRunIR(drawNum As String, rev As String, datePrinted As String) As Variant()
+    On Error GoTo GetFlaggedShortRunIRErr
+    Set fso = New FileSystemObject
+    query = fso.OpenTextFile(DataSources.QUERIES_PATH & "IK_GetShortRunFlagged.sql").ReadAll()
+    params = Array("datePrinted," & datePrinted, "vru.DrawNum," & drawNum, "vru.Revision," & rev)
+
+    Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.Kiosk)
+
+    If Not sqlRecordSet.EOF Then
+        GetFlaggedShortRunIR = sqlRecordSet.GetRows()
+        Exit Function
+    End If
+
+GetFlaggedShortRunIRErr:
+    'if errored because recordset.EOF, thats fine, it means that the part has never been flagged for short run inspection
+    If Err.Number = vbObjectError + 2000 Then
+        Dim noResults() As Variant
+        GetFlaggedShortRunIR = noResults
+        Exit Function
+    Else
+        Err.Raise Number:=Err.Number, Description:="Func: IK-GetFlaggedShortRunIR" & vbCrLf & Err.Description
+    End If
+
+End Function
+
+
+
+
+

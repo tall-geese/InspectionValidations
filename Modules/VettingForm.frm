@@ -34,11 +34,6 @@ Dim aqlQuantity As String
 
 
 
-
-Private Sub Image10_BeforeDragOver(ByVal Cancel As MSForms.ReturnBoolean, ByVal Data As MSForms.DataObject, ByVal X As Single, ByVal Y As Single, ByVal DragState As MSForms.fmDragState, ByVal Effect As MSForms.ReturnEffect, ByVal Shift As Integer)
-
-End Sub
-
 Private Sub Label42_Click()
 
 End Sub
@@ -184,13 +179,13 @@ ShouldExist:
                     .Visible = True
                 
                 Else
-                    'Anything not covered above should be AQL quantity
+                    'Anything not covered above should be AQL quantity, and is likely an IP Routine
                     If RibbonCommands.IsParentJob Then  'Parent jobs should have AQL based off parts made, not just what we have
-                        .Caption = GetAQL(customer:=RibbonCommands.customer, drawNum:=RibbonCommands.drawNum, _
-                                                ProdQty:=DatabaseModule.GetParentProdQty(JobNumber:=RibbonCommands.jobNumUcase))
+                        .Caption = GetRequiredInspections(customer:=RibbonCommands.customer, drawNum:=RibbonCommands.drawNum, _
+                                                ProdQty:=DatabaseModule.GetParentProdQty(JobNumber:=RibbonCommands.jobNumUcase), routineType:=routineType)
                     Else
-                        .Caption = GetAQL(customer:=RibbonCommands.customer, drawNum:=RibbonCommands.drawNum, _
-                                                ProdQty:=RibbonCommands.ProdQty)
+                        .Caption = GetRequiredInspections(customer:=RibbonCommands.customer, drawNum:=RibbonCommands.drawNum, _
+                                                ProdQty:=RibbonCommands.ProdQty, routineType:=routineType)
                     
                     End If
                     .Visible = True
@@ -206,8 +201,8 @@ ShouldExist:
                     If DatabaseModule.IsAllAttribrute(routine:=RibbonCommands.partRoutineList(0, i)) Then
                         .Caption = "1"
                     Else
-                        .Caption = GetAQL(customer:=RibbonCommands.customer, drawNum:=RibbonCommands.drawNum, _
-                                        ProdQty:=RibbonCommands.ProdQty)
+                        .Caption = GetRequiredInspections(customer:=RibbonCommands.customer, drawNum:=RibbonCommands.drawNum, _
+                                        ProdQty:=RibbonCommands.ProdQty, routineType:=routineType)
                         
                     End If
                     .Visible = True
@@ -506,32 +501,69 @@ End Sub
 
     'Wrapper for ExcelHelper.GetAQL()
     'stores the values that we find in RibbonCommands reduce redundant queries
-Private Function GetAQL(customer As String, drawNum As String, ProdQty As Integer) As String
+Private Function GetRequiredInspections(customer As String, drawNum As String, ProdQty As Integer, routineType As String) As String
     If (RibbonCommands.samplingSize = vbNullString And RibbonCommands.custAQL = vbNullString) Or RibbonCommands.IsParentJob Then
         Dim aqlValues() As String
-        aqlValues = ExcelHelpers.GetAQL(customer:=customer, drawNum:=drawNum, ProdQty:=ProdQty)
-        
-        If aqlValues(1) = "100%" Then
-            Me.AQL.Caption = "100%"
-        Else
-            Me.AQL.Caption = format(aqlValues(1), "0.00")
-        End If
+        aqlValues = ExcelHelpers.GetAQL(customer:=customer, drawNum:=drawNum, ProdQty:=ProdQty, isShortRunEnabled:=RibbonCommands.isShortRunEnabled)
         
         RibbonCommands.samplingSize = aqlValues(0)
         RibbonCommands.custAQL = aqlValues(1)
         
-        GetAQL = aqlValues(0)
+        If RibbonCommands.custAQL = "100%" Then
+            Me.AQL.Caption = "100%"
+        Else
+            Me.AQL.Caption = format(RibbonCommands.custAQL, "0.00")
+        End If
+        
+        On Error GoTo LowerBoundErr
+        
+        If RibbonCommands.isShortRunEnabled Then   'We should have pulled the Cutoff values as well
+            RibbonCommands.lowerBoundCutoff = CInt(aqlValues(2))
+            RibbonCommands.lowerBoundInspections = CInt(aqlValues(3))
+        End If
+        
+        
+        If RibbonCommands.isShortRunEnabled And Not routineType Like "*FI_*" Then
+            If ProdQty <= RibbonCommands.lowerBoundCutoff Then
+                GetRequiredInspections = CStr(RibbonCommands.lowerBoundInspections)
+            Else
+                GetRequiredInspections = aqlValues(0)
+            End If
+        Else
+            GetRequiredInspections = aqlValues(0)
+        End If
+        
     Else
         If RibbonCommands.custAQL = "100%" Then
             Me.AQL.Caption = "100%"
         Else
             Me.AQL.Caption = format(RibbonCommands.custAQL, "0.00")
         End If
-        GetAQL = RibbonCommands.samplingSize
+        
+        On Error GoTo LowerBoundErr
+        
+        If RibbonCommands.isShortRunEnabled And Not routineType Like "*FI_*" Then
+            If ProdQty <= RibbonCommands.lowerBoundCutoff Then
+                GetRequiredInspections = CStr(RibbonCommands.lowerBoundInspections)
+            Else
+                GetRequiredInspections = RibbonCommands.samplingSize
+            End If
+        Else
+            GetRequiredInspections = RibbonCommands.samplingSize
+        End If
+        
     End If
-
     
+    Exit Function
+    
+    
+LowerBoundErr:
+    MsgBox "Encountered an Error with handling the Lower Boundary Frequency values set in the Inspection Report" _
+                & vbCrLf & "Please have a QE make sure the Values in the IR are correct", vbCritical
+
 End Function
+
+
 
 
 

@@ -16,8 +16,9 @@ Public rev As String
 Public partDesc As String
 Public drawNum As String
 Public ProdQty As Integer
-Public samplingSize As String
-Public custAQL As String
+Public dateTravelerPrinted As String
+Public isShortRunEnabled As Boolean, lowerBoundCutoff As Integer, lowerBoundInspections As Integer
+Public samplingSize As String, custAQL As String
 Public IsChildJob As Boolean  'example: NV18209-2
 Public IsParentJob As Boolean  'example: NV18209
 
@@ -620,6 +621,8 @@ Private Sub ClearFeatureVariables(Optional preserveRoutines As Boolean)
     rev = vbNullString
     customer = vbNullString
     partDesc = vbNullString
+    dateTravelerPrinted = vbNullString
+    isShortRunEnabled = False
     multiMachinePart = False
     machineStageMissing = False
     samplingSize = vbNullString
@@ -652,8 +655,18 @@ Private Sub SetJobVariables(jobnum As String)
     If VarType(jobInfo(7, 0)) = vbNull Then
         Err.Raise Number:=vbObjectError + 2100, Description:="No Operations have been completed for this Job." & vbCrLf & "Cant Verify Inspections"
     End If
-    ProdQty = jobInfo(7, 0)
     
+    ProdQty = jobInfo(7, 0)
+    dateTravelerPrinted = jobInfo(8, 0)
+    
+    Dim shortRunInfo() As Variant
+    shortRunInfo = GetFlaggedShortRunIR(drawNum:=drawNum, rev:=rev, datePrinted:=dateTravelerPrinted)
+    If Not Not shortRunInfo Then
+        If shortRunInfo(2, 0) >= 0 Then  'If the job was printed after the IR was flagged for short run Inspections
+            isShortRunEnabled = True
+        End If
+    End If
+        
         'Check if a job is a Parent Job
     IsParentJob = DatabaseModule.IsParentJob(JobNumber:=jobnum)
     If IsParentJob Then Exit Sub 'Prod Qty should exclude negative transaction adjustments
