@@ -42,12 +42,11 @@ Sub populateJobHeaders(jobnum As String, routine As Variant, customer As String,
     Exit Sub
 
 PopHeadersErr:
-    Err.Raise Number:=Err.Number, Description:="sub: populateJobHeaders" & vbCrLf & Err.Description
+    Err.Raise Number:=Err.Number, Description:="Sub: ThisWorkbook.populateJobHeaders" & vbCrLf & Err.Description
 
 End Sub
 
 Public Sub populateReport(featureInfo() As Variant, featureMeasurements() As Variant, featureTraceability() As Variant)
-    On Error GoTo PopulateReportErr
 
     'If user entered nonsense into the Routine ComboBox, we end up calling this sub but skip setting anything
     If (Not featureInfo) = -1 Or (Not featureMeasurements) = -1 Then Exit Sub
@@ -57,6 +56,10 @@ Public Sub populateReport(featureInfo() As Variant, featureMeasurements() As Var
     'TODO: test that this is infact 0-indexed in the normal situation
     Dim applicablePages As Integer
     applicablePages = Application.WorksheetFunction.Floor((UBound(featureInfo, 2) - LBound(featureInfo, 2)) / 8, 1) + 1
+    
+    If applicablePages > DataSources.AVAILABLE_PAGES Then
+        Err.Raise Number:=vbObjectError + 9999, Description:="Not enough room to fit all the dimensions"
+    End If
     
     For i = 1 To applicablePages
         ThisWorkbook.Worksheets("PAGE " & i).Unprotect Password:="3063bqa"
@@ -72,10 +75,7 @@ Public Sub populateReport(featureInfo() As Variant, featureMeasurements() As Var
     Next i
 
     Application.ScreenUpdating = True
-    Exit Sub
     
-PopulateReportErr:
-    Err.Raise Number:=Err.Number, Description:=Err.Description
 End Sub
 
 
@@ -153,7 +153,7 @@ attSheetErr:
     
     End With
     
-    Err.Raise Number:=Err.Number, Description:="sub: populateAttrSheet" & vbCrLf & Err.Description
+    Err.Raise Number:=Err.Number, Description:="Sub: ThisWorkbook.populateAttrSheet" & vbCrLf & Err.Description
 
 End Sub
 
@@ -202,6 +202,7 @@ Private Sub populateHeaderFeatureInfo(featureInfo() As Variant)
 
                 .Range(colLetter & "9").Value = featureInfo(8 + LBound(featureInfo, 1), i) 'Balloon
                 .Range(colLetter & "10").Value = featureInfo(1 + LBound(featureInfo, 1), i) 'Description
+                Debug.Print (featureInfo(1 + LBound(featureInfo, 1), i))
                 
                 If featureInfo(6 + LBound(featureInfo, 1), i) = "Variable" Then
                     .Range(colLetter & "16").Value = featureInfo(2 + LBound(featureInfo, 1), i) 'LTol
@@ -236,7 +237,7 @@ Private Sub populateHeaderFeatureInfo(featureInfo() As Variant)
     
 FeatureHeadersErr:
     ExcelHelpers.CloseDataValWB
-    Err.Raise Number:=Err.Number, Description:="sub: populateHeaderFeatureInfo" & vbCrLf & Err.Description
+    Err.Raise Number:=Err.Number, Description:="Sub: ThisWorkbook.populateHeaderFeatureInfo" & vbCrLf & Err.Description
 End Sub
 
 
@@ -296,7 +297,7 @@ NextFeature:
     Exit Sub
     
 FeatureValuesErr:
-    Err.Raise Number:=Err.Number, Description:="sub: populateFeatureMeasuredValues" & vbCrLf & Err.Description
+    Err.Raise Number:=Err.Number, Description:="Sub: ThisWorkbook.populateFeatureMeasuredValues" & vbCrLf & Err.Description
 
 End Sub
 
@@ -338,7 +339,7 @@ Private Sub populateTraceabilityInfo(featureTraceabilityInfo() As Variant, pages
     Exit Sub
 
 FeatureTraceErr:
-    Err.Raise Number:=Err.Number, Description:="sub: populateTraceabilityInfo" & vbCrLf & Err.Description
+    Err.Raise Number:=Err.Number, Description:="Sub: ThisWorkbook.populateTraceabilityInfo" & vbCrLf & Err.Description
 
 End Sub
 
@@ -368,7 +369,7 @@ Private Sub Cleanup()
     End With
 
     'Reset everything else on all sheets
-    For i = 1 To 20
+    For i = 1 To 30
         With ThisWorkbook.Worksheets("PAGE " & i)
             If .Visible = True Then
                 .Activate

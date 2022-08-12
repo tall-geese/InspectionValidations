@@ -337,7 +337,7 @@ nextFeat:
     
 
     query = query & whereClause
-    Debug.Print (query)
+'    Debug.Print (query)
     params = Array("r.RunName," & jobnum, "rt.RoutineName," & routine, "r.RunName," & jobnum, "rt.RoutineName," & routine)
     
     Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.ML7)
@@ -361,6 +361,8 @@ Function GetAllFeatureMeasuredValues(jobnum As String, routine As String, delimF
     Set fso = New FileSystemObject
     query = Replace(Split(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_FeatureMeasurements.sql").ReadAll, ";")(1), "{Features}", delimFeatures)
     params = Array("r.RunName," & jobnum, "rt.RoutineName," & routine, "r.RunName," & jobnum, "rt.RoutineName," & routine)
+    
+    Debug.Print query
     
     Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.ML7)
 

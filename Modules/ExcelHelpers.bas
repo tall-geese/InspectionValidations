@@ -26,6 +26,7 @@ Public Function GetAQL(customer As String, drawNum As String, ProdQty As Integer
     
     Filename = Dir(prefixPath & drawNum & "*.xlsm")
     
+    If ProdQty = 0 Then GoTo ProdQtyErr
     
     If Filename = "" Then
         'If there isn't an xl file in the directory, it may be in the draft
@@ -64,7 +65,7 @@ Public Function GetAQL(customer As String, drawNum As String, ProdQty As Integer
             row = "4"
         Case 16 To 20
             row = "5"
-        Case 22 To 25
+        Case 21 To 25
             row = "6"
         Case 26 To 30
             row = "7"

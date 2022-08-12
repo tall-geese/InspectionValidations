@@ -779,7 +779,7 @@ SetWBinfo:
     Exit Sub
 wbErr:
     ExcelHelpers.CloseDataValWB
-    result = MsgBox("Could not set information to the workbook" & vbCrLf & "issue found at " & vbCrLf & Err.Description, vbCritical)
+    result = MsgBox("Error Occurred at Sub: RibbonCommands.SetWorkbookInformation", vbCritical)
     Err.Raise Number:=vbObjectError + 1200
     
 End Sub
