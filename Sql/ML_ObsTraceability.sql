@@ -23,7 +23,7 @@ FROM (SELECT MIN(src.ObsTimestamp)[TimeStamp], MAX(src.ItemName)[EmployeeID], sr
 			INNER JOIN dbo.Run r ON fr.RunID = r.RunID 
 			INNER JOIN dbo.Routine rt ON rt.RoutineID = r.RoutineID 
 			INNER JOIN dbo.FeatureRunData frd ON fr.RunID = frd.RunID AND fr.FeatureID=frd.FeatureID
-			LEFT OUTER JOIN dbo.FeatureProperties fpr ON f.FeatureID = fpr.FeatureID AND f.FeaturePropID = fpr.FeaturePropID 
+			INNER JOIN dbo.FeatureProperties fpr ON fr.FeatureID = fpr.FeatureID AND fr.FeaturePropID = fpr.FeaturePropID 
 			LEFT OUTER JOIN dbo.DataTraceability dta ON r.RunID = dta.RunID AND f.FeatureID = dta.FeatureID AND frd.ObsID = dta.StartObsID 
 			WHERE r.RunName = ? AND rt.RoutineName = ? AND frd.ObsNo > 0
 			UNION ALL
@@ -73,7 +73,7 @@ FROM (SELECT MIN(src.ObsTimestamp)[TimeStamp], MAX(src.ItemName)[EmployeeID], sr
 			INNER JOIN dbo.Run r ON fr.RunID = r.RunID 
 			INNER JOIN dbo.Routine rt ON rt.RoutineID = r.RoutineID 
 			INNER JOIN dbo.FeatureRunData frd ON fr.RunID = frd.RunID AND fr.FeatureID=frd.FeatureID
-			LEFT OUTER JOIN dbo.FeatureProperties fpr ON f.FeatureID = fpr.FeatureID AND f.FeaturePropID = fpr.FeaturePropID 
+			INNER JOIN dbo.FeatureProperties fpr ON fr.FeatureID = fpr.FeatureID AND fr.FeaturePropID = fpr.FeaturePropID 
 			LEFT OUTER JOIN dbo.DataTraceability dta ON r.RunID = dta.RunID AND f.FeatureID = dta.FeatureID AND frd.ObsID = dta.StartObsID 
 			WHERE r.RunName = ? AND rt.RoutineName = ? AND frd.ObsNo > 0
 			UNION ALL
@@ -122,7 +122,7 @@ FROM (SELECT MIN(src.ObsTimestamp)[TimeStamp], MAX(src.ItemName)[EmployeeID], sr
 			INNER JOIN dbo.Run r ON fr.RunID = r.RunID 
 			INNER JOIN dbo.Routine rt ON rt.RoutineID = r.RoutineID 
 			INNER JOIN dbo.FeatureRunData frd ON fr.RunID = frd.RunID AND fr.FeatureID=frd.FeatureID
-			LEFT OUTER JOIN dbo.FeatureProperties fpr ON f.FeatureID = fpr.FeatureID AND f.FeaturePropID = fpr.FeaturePropID 
+			INNER JOIN dbo.FeatureProperties fpr ON fr.FeatureID = fpr.FeatureID AND fr.FeaturePropID = fpr.FeaturePropID 
 			LEFT OUTER JOIN dbo.DataTraceability dta ON r.RunID = dta.RunID AND f.FeatureID = dta.FeatureID AND frd.ObsID = dta.StartObsID 
 			WHERE r.RunName = ? AND rt.RoutineName = ? AND frd.ObsNo > 0) src
 	GROUP BY src.ObsNo) src2
