@@ -508,6 +508,7 @@ Function JoinPivotFeatures(featureHeaderInfo() As Variant) As String
 End Function
 
 Public Function GetMachiningLevel(routineName As Variant) As Integer
+    
     'set the maximum level
     Dim maxLevel As Integer
     maxLevel = UBound(partOperations, 2)
@@ -518,23 +519,18 @@ Public Function GetMachiningLevel(routineName As Variant) As Integer
     
     If (InStr(routineSub, "FA") > 0) Or (InStr(routineSub, "IP") > 0) Then
         If (InStr(routineSub, "IP_ASSY") > 0) Then GoTo 10
-        If (Len(routineSub) - Len(Replace(routineSub, "_", "")) >= 2) Or (IsNumeric(Right(routineSub, 1))) Then
-            'If the routine has more than a single _ such as FA_FIRST_MILL and only two machining operations then its fair to assume
-            'that its the ladder. Otherwise if it is numerically defined like FA_FIRST3, then we interperet the level based off the
-            'numeric character at the end
-            If maxLevel = 1 Then
-                GetMachiningLevel = 1
-            ElseIf IsNumeric(Right(routineSub, 1)) Then
-                Dim foundLevel As Integer
-                foundLevel = CInt(Right(routineSub, 1))
-                If foundLevel <= maxLevel Then
-                    GetMachiningLevel = (foundLevel - 1)
-                Else
-                    'Return an error here, this should be impossible
-                End If
+        If routineSub Like "*_MILL" Then
+            routineSub = Replace(routineSub, "_MILL", "")
+        End If
+        
+        If (IsNumeric(Right(routineSub, 1))) Then
+            Dim foundLevel As Integer
+            foundLevel = CInt(Right(routineSub, 1)) - 1
+            If foundLevel <= maxLevel Then
+                GetMachiningLevel = foundLevel
             Else
-                result = MsgBox("Naming convention for " & routineName & " is not allowed for this many machining operations", vbCritical)
-                GoTo RoutineParsingErr
+                'Return an error here, this should be impossible
+                Err.Raise Number:=vbObjectError + 2500, Description:="Routine's Machining Level Number exceeds the Number of Machining Operations Found"
             End If
         Else
             GetMachiningLevel = 0
@@ -551,8 +547,8 @@ Public Function GetMachiningLevel(routineName As Variant) As Integer
     Exit Function
     
 RoutineParsingErr:
-    Err.Raise Number:=vbObjectError + 2500, Description:="Couldn't figure out, what machining operation " & routineNmae & _
-        vbCrLf & "should belong to. Does not follow correct naming conventions"
+    Err.Raise Number:=vbObjectError + 2500, Description:="Couldn't figure out, what machining operation " & routineName & _
+        vbCrLf & "should belong to. Does not follow correct naming conventions" & vbCrLf & vbCrLf & Err.Description
 End Function
 
 Private Sub SetFeatureVariables()
@@ -754,8 +750,14 @@ SetFIattr:
             End If
                         
             attFeatTraceability = DatabaseModule.GetFinalAttrTraceability(jobNumUcase, rtCombo_TextField)
+            
                 'If theres no tracability or we dont have traceability data for every feature
-            If (Not attFeatTraceability) = -1 Or UBound(attFeatTraceability, 2) <> UBound(attFeatHeaders, 2) Then noTraceability = True
+                'This seems to be Caused by misalignment of StartObsId and that ObsId not existing in teh RunData
+                'Perhaps caused by someone starting to take an observation and then not completing that value
+            If (Not attFeatTraceability) = -1 Or UBound(attFeatTraceability, 2) <> UBound(attFeatHeaders, 2) Then
+                noTraceability = True
+                MsgBox "Traceability Information Missing on Attribute Features" & vbCrLf & "Try doing another row of Passes to resolve this issue", vbCritical
+            End If
              
         End If
     Else
