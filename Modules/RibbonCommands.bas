@@ -36,9 +36,8 @@ Public jobOperations() As Variant
     '(1,i) -> setupType
     '(2,i) -> Machine
     '(3,i) -> Cell
-    '(4,i) -> ProdQty
-    '(5,i) -> OprSeq
-    '(6,i) -> OpCode
+    '(4,i) -> OprSeq
+    '(5,i) -> OpCode
 'Routines for the part / Routines that we've run
 Public partRoutineList() As Variant
     '(0,i) -> RoutineName
@@ -118,19 +117,17 @@ Public Sub jbEditText_OnChange(ByRef control As Office.IRibbonControl, ByRef Tex
     If Text = vbNullString Then GoTo 10
     
     On Error GoTo 10
-    Call SetJobVariables(jobnum:=jobNumUcase) 'If this errors out, just clears everything
+    Call SetJobVariables(jobNum:=jobNumUcase) 'If this errors out, just clears everything
     
     partOperations = DatabaseModule.GetPartOperationInfo(jobNumUcase)
-    If ((Not partOperations) = -1) Then GoTo QueryRoutines 'If the part never gets machined inside, dont bother querying for run info
-    If UBound(partOperations, 2) > 0 Then multiMachinePart = True
-    
     jobOperations = DatabaseModule.GetJobOperationInfo(jobNumUcase)
+    
     'If there are no inside mach ops or there are less then there should be according to the MoM, flag that a stage is missing
-    If ((Not jobOperations) = -1) Then
+    If ((Not jobOperations) = -1 And (Not Not partOperations)) Then
         machineStageMissing = True
-        GoTo SkipUbound
+    ElseIf (Not Not jobOperations) And (Not Not partOperations) Then
+        machineStageMissing = (UBound(jobOperations, 2) < UBound(partOperations, 2))
     End If
-    If (UBound(jobOperations, 2) < UBound(partOperations, 2)) Then machineStageMissing = True
     
 SkipUbound:
     'If ops are missing, we need to determine which ones so we can ignore those respective routines later.
@@ -168,10 +165,50 @@ Nexti:
         End If
     End If
     
+'If there are more Machining Ops in the Job than the Part, things aren't missing
+    'But we may need to insert a Machining Op into partOperations for later
+    
+    On Error GoTo PartOperationsErr
+AddPartOps:
+    If (Not partOperations) = -1 And (Not Not jobOperations) Then
+        GoTo CompareMachOps
+    'Otherwise if we have both part and job machining operations AND more machining ops in the Job than the Part MoM
+    ElseIf (Not Not partOperations) And (Not Not jobOperations) Then
+        If UBound(jobOperations, 2) > UBound(partOperations, 2) Then
+CompareMachOps:
+            Dim partMoM() As Variant, levelCounter As Integer
+            partMoM = DatabaseModule.GetAllPartOps(partNum:=partNum, rev:=rev)
+            
+            For i = 0 To UBound(partMoM, 2)
+                If partMoM(1, i) = "OUT" Then  'If theres an outside op changed to a machining op
+                    For j = 0 To UBound(jobOperations, 2)
+                        If (jobOperations(5, j) = "SWISS" Or jobOperations(5, j) = "CNC") And (jobOperations(4, j) = partMoM(0, i)) Then
+                            'Insert the into our PartOps at the appropriate index
+                            If (Not partOperations) = -1 Then
+                                ReDim Preserve partOperations(2, 0)
+                                partOperations(0, 0) = jobNumUcase
+                                partOperations(1, 0) = partMoM(0, i) ' OprSeq
+                                partOperations(2, 0) = partMoM(1, i) ' OpCode
+                            Else
+                                'TODO: Create Heloer function to Insert at the Correct Position
+                                partOperations = ExcelHelpers.InsertOpRow(partOperations, jobNumUcase, partMoM(0, i), partMoM(1, i))
+                            End If
+                        End If
+                    Next j
+                End If
+            Next i
+        End If
+    End If
+        
+    On Error GoTo 10
+    If (Not Not partOperations) Then
+        If UBound(partOperations, 2) > 0 Then multiMachinePart = True
+    End If
+    
 QueryRoutines:
     Dim tempRoutineArray() As Variant
     On Error GoTo ML_QueryErr:
-    customer = DatabaseModule.GetCustomerName(jobnum:=jobNumUcase)
+    customer = DatabaseModule.GetCustomerName(jobNum:=jobNumUcase)
     partRoutineList = DatabaseModule.GetPartRoutineList(partNum, rev)
     tempRoutineArray = DatabaseModule.GetRunRoutineList(jobNumUcase)
 
@@ -191,11 +228,11 @@ QueryRoutines:
         Dim routine As String
         routine = runRoutineList(0, i)
         Dim features() As Variant
-        features = DatabaseModule.GetFeatureHeaderInfo(jobnum:=jobNumUcase, routine:=routine)
+        features = DatabaseModule.GetFeatureHeaderInfo(jobNum:=jobNumUcase, routine:=routine)
 
         'Add the number of found Observations
         Dim featureCount() As Variant
-        featureCount = DatabaseModule.GetFeatureMeasuredValues(jobnum:=jobNumUcase, routine:=routine, _
+        featureCount = DatabaseModule.GetFeatureMeasuredValues(jobNum:=jobNumUcase, routine:=routine, _
                                         delimFeatures:=JoinPivotFeatures(features), featureInfo:=features)
         If ((Not featureCount) = -1) Then 'If we get returned an empty array, then the value is 0
             runRoutineList(2, i) = 0
@@ -206,7 +243,7 @@ QueryRoutines:
                 'Since we only ever do a single observation of the attribute features, looking at all features
                 'as a whole, this would normally assume that only one good observation exists
                 If Not DatabaseModule.IsAllAttribrute(routine:=routine) Then
-                    featureCount = DatabaseModule.GetFeatureMeasuredValues(jobnum:=jobNumUcase, routine:=routine, _
+                    featureCount = DatabaseModule.GetFeatureMeasuredValues(jobNum:=jobNumUcase, routine:=routine, _
                                     delimFeatures:=JoinPivotFeatures(features), featureInfo:=features, IS_FI_DIM:=True)
                     runRoutineList(2, i) = UBound(featureCount, 2) + 1
                 Else
@@ -296,9 +333,23 @@ SetupTypeUndefined:
     MsgBox Prompt:="Could not resolve Setup Type (Full, Mini, None)" & vbCrLf & "check this value in Epicor and/or ask a QE", Buttons:=vbExclamation
     GoTo 10
     
+PartOperationsErr:
+    If Err.Number = vbObjectError + 5000 Then
+        MsgBox Prompt:="Error when trying to add an OUTside operation that has the same OP Number as an already Existing operation" & vbCrLf & vbCrLf & Err.Description, Buttons:=vbCritical
+    End If
+    
+    GoTo 10
+    
 ML_RoutineInfo:
     MsgBox Prompt:="Error on handling routine: " & routine & vbCrLf & "information is either missing or incorrect, alert a QE" & vbCrLf & Err.Description, Buttons:=vbExclamation
     GoTo 10
+VettingFormErr:
+    If Err.Number = vbObjectError + 9999 Then 'Handled error, just ignore
+        GoTo 10
+    Else
+        MsgBox "Unidentified error encountered when loading Vetting Form" & vbCrLf & vbCrLf & Err.Description
+        GoTo 10
+    End If
 End Sub
 
 
@@ -508,6 +559,10 @@ Function JoinPivotFeatures(featureHeaderInfo() As Variant) As String
 End Function
 
 Public Function GetMachiningLevel(routineName As Variant) As Integer
+    'Attempt to Associate a RoutineName with the an index position of our operations array
+    
+    'If we dont have partOps, then we cant determine a level, something is wrong
+    If (Not partOperations) = -1 Then Err.Raise Number:=vbObjectError + 4000
     
     'set the maximum level
     Dim maxLevel As Integer
@@ -564,22 +619,22 @@ Private Sub SetFeatureVariables()
         End If
     End If
 
-    featureHeaderInfo = DatabaseModule.GetFeatureHeaderInfo(jobnum:=jobNumUcase, routine:=rtCombo_TextField)
+    featureHeaderInfo = DatabaseModule.GetFeatureHeaderInfo(jobNum:=jobNumUcase, routine:=rtCombo_TextField)
     
     'Should we filter or not filter observations shown based on Pass/Fail data
     'Having ShowAllObs pressed DOES NOT change the ObsFound value for the userform, that value is set in jbEditText
     If toggShowAllObs_Pressed Then
-        featureTraceabilityInfo = DatabaseModule.GetAllFeatureTraceabilityData(jobnum:=jobNumUcase, routine:=rtCombo_TextField)
-        featureMeasuredValues = DatabaseModule.GetAllFeatureMeasuredValues(jobnum:=jobNumUcase, routine:=rtCombo_TextField, _
+        featureTraceabilityInfo = DatabaseModule.GetAllFeatureTraceabilityData(jobNum:=jobNumUcase, routine:=rtCombo_TextField)
+        featureMeasuredValues = DatabaseModule.GetAllFeatureMeasuredValues(jobNum:=jobNumUcase, routine:=rtCombo_TextField, _
                                                 delimFeatures:=JoinPivotFeatures(featureHeaderInfo))
 
     Else
             'If we have a FI_DIM with all Attr features then, we should leave the arrays unintialized
         If Not allAttr Then
-            featureMeasuredValues = DatabaseModule.GetFeatureMeasuredValues(jobnum:=jobNumUcase, routine:=rtCombo_TextField, _
+            featureMeasuredValues = DatabaseModule.GetFeatureMeasuredValues(jobNum:=jobNumUcase, routine:=rtCombo_TextField, _
                                                     delimFeatures:=JoinPivotFeatures(featureHeaderInfo), featureInfo:=featureHeaderInfo, IS_FI_DIM:=isFI_DIM)
             
-            featureTraceabilityInfo = DatabaseModule.GetFeatureTraceabilityData(jobnum:=jobNumUcase, routine:=rtCombo_TextField, FI_DIM_ROUTINE:=isFI_DIM)
+            featureTraceabilityInfo = DatabaseModule.GetFeatureTraceabilityData(jobNum:=jobNumUcase, routine:=rtCombo_TextField, FI_DIM_ROUTINE:=isFI_DIM)
         End If
     End If
     
@@ -635,11 +690,11 @@ Private Sub ClearFeatureVariables(Optional preserveRoutines As Boolean)
 
 End Sub
 
-Private Sub SetJobVariables(jobnum As String)
+Private Sub SetJobVariables(jobNum As String)
     On Error GoTo jbInfoErr
     Dim jobInfo() As Variant
     
-    jobInfo = DatabaseModule.GetJobInformation(JobID:=jobnum)
+    jobInfo = DatabaseModule.GetJobInformation(JobID:=jobNum)
     
     'Add the components of the array to our variables
     partNum = jobInfo(2, 0)
@@ -664,7 +719,7 @@ Private Sub SetJobVariables(jobnum As String)
     End If
         
         'Check if a job is a Parent Job
-    IsParentJob = DatabaseModule.IsParentJob(JobNumber:=jobnum)
+    IsParentJob = DatabaseModule.IsParentJob(JobNumber:=jobNum)
     If IsParentJob Then Exit Sub 'Prod Qty should exclude negative transaction adjustments
     
     
@@ -674,9 +729,9 @@ Private Sub SetJobVariables(jobnum As String)
 
 
         'Check if the Job is a Child Job Instance, only check if not already a parent job
-    If Not IsNumeric(Left(jobnum, 1)) And InStr(jobnum, "-") > 0 Then
+    If Not IsNumeric(Left(jobNum, 1)) And InStr(jobNum, "-") > 0 Then
         Dim jobArr() As String
-        jobArr = Split(jobnum, "-")
+        jobArr = Split(jobNum, "-")
         If UBound(jobArr) = 1 Then
             If (Len(jobArr(1)) = 1 Or Len(jobArr(1)) = 2) And IsNumeric(jobArr(1)) Then IsChildJob = True
         End If
@@ -769,7 +824,7 @@ SetWBinfo:
     On Error GoTo wbErr
     ExcelHelpers.OpenDataValWB
     
-    Call ThisWorkbook.populateJobHeaders(jobnum:=jobNumUcase, routine:=rtCombo_TextField, customer:=customer, _
+    Call ThisWorkbook.populateJobHeaders(jobNum:=jobNumUcase, routine:=rtCombo_TextField, customer:=customer, _
                                             machine:=machine, partNum:=partNum, rev:=rev, partDesc:=partDesc)
     Call ThisWorkbook.populateReport(featureInfo:=featureHeaderInfo, featureMeasurements:=featureMeasuredValues, _
                                         featureTraceability:=featureTraceabilityInfo)
