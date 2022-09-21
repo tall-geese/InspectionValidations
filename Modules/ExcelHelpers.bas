@@ -151,7 +151,7 @@ LowerBoundErr:
 End Function
 
 
-Public Sub CreateEmail(qcManager As Boolean, cellLead As Boolean, pmodManager As Boolean, cellLeadEmail As String, jobnum As String, machine As String, failInfo() As Variant)
+Public Sub CreateEmail(qcManager As Boolean, cellLead As Boolean, pmodManager As Boolean, cellLeadEmail As String, jobNum As String, machine As String, failInfo() As Variant)
     Dim oApp As Outlook.Application
     Dim myMail As Outlook.MailItem
     Dim HTMLContent As String
@@ -171,7 +171,7 @@ Public Sub CreateEmail(qcManager As Boolean, cellLead As Boolean, pmodManager As
             .To = .To & ";" & DataSources.PMODMAN_TO
         End If
         
-        .Subject = Replace(DataSources.EMAIL_SUBJECT, "{Job}", jobnum)
+        .Subject = Replace(DataSources.EMAIL_SUBJECT, "{Job}", jobNum)
         .Subject = Replace(.Subject, "{Machine}", machine)
         
         HTMLContent = DataSources.EMAIL_BODY_HEADER
@@ -262,6 +262,49 @@ Public Function fill_null(inputArr() As Variant) As Variant()
     Next i
     fill_null = inputArr
 End Function
+
+
+Public Function InsertOpRow(partOperations() As Variant, jobNum As String, opNum As Variant, opCode As Variant) As Variant()
+    'Take a non-empty array insert a new operation so tha the opNumber is in order.
+    'VBA has no built-in sorting for 2-d arrays
+    Dim i As Integer, outArr() As Variant, insertedNew As Boolean
+    ReDim Preserve outArr(2, UBound(partOperations, 2) + 1)
+    For i = 0 To UBound(outArr, 2)
+        If i = UBound(outArr, 2) Then
+            If Not insertedNew Then
+                outArr(0, i) = jobNum
+                outArr(1, i) = opNum
+                outArr(2, i) = opCode
+            Else
+                GoTo prevPartOp
+            End If
+        ElseIf insertedNew Then  'If we've got our row in there, just add in the partOperations
+prevPartOp:
+            outArr(0, i) = partOperations(0, i - 1)
+            outArr(1, i) = partOperations(1, i - 1)
+            outArr(2, i) = partOperations(2, i - 1)
+        ElseIf partOperations(1, i) = opNum Then  'Not allowed to be equal
+            Err.Raise Number:=vbObjectError + 5000, Description:="OprSeq equal to an existing operation, cant insert this new Op" _
+                & vbCrLf & vbCrLf & "partOp" & vbCrLf & partOperations(1, i) & vbTab & partOperations(2, i) _
+                & vbCrLf & vbCrLf & "Insert-Op" & vbCrLf & opNum & vbTab & opCode
+        ElseIf opNum < partOperations(1, i) And Not insertedNew Then   'Found the position to insert our input
+            outArr(0, i) = jobNum
+            outArr(1, i) = opNum
+            outArr(2, i) = opCode
+            insertedNew = True
+        Else
+            outArr(0, i) = partOperations(0, i)
+            outArr(1, i) = partOperations(1, i)
+            outArr(2, i) = partOperations(2, i)
+        End If
+    Next i
+    
+    InsertOpRow = outArr
+    
+End Function
+
+
+
 
 
 
