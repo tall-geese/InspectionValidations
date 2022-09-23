@@ -16,7 +16,7 @@ Attribute VB_Exposed = True
 '               populateHeaderFeatureInfo(), populateFeatureMeasuredValues(), populateTraceabilityInfo()
 '*************************************************************************************************
 
-Sub populateJobHeaders(jobnum As String, routine As Variant, customer As String, machine As Variant, partNum As String, rev As String, partDesc As String)
+Sub populateJobHeaders(jobNum As String, routine As Variant, customer As String, machine As Variant, partNum As String, rev As String, partDesc As String)
     On Error GoTo PopHeadersErr:
     Call Cleanup
     
@@ -28,7 +28,7 @@ Sub populateJobHeaders(jobnum As String, routine As Variant, customer As String,
     With Worksheets("PAGE 1")
         .Unprotect Password:="3063bqa"
         
-        .Range("C1").Value = jobnum
+        .Range("C1").Value = jobNum
         .Range("C2").Value = routine
         .Range("C3").Value = customer
         .Range("C4").Value = machine
@@ -101,7 +101,7 @@ Public Sub populateAttrSheet(attFeatHeaders() As Variant, attFeatResults() As Va
     If (Not attFeatHeaders) = -1 Or (Not attFeatTraceability) = -1 Then Exit Sub
     If RibbonCommands.samplingSize = vbNullString Then
         Call SetAQL(customer:=RibbonCommands.customer, drawNum:=RibbonCommands.drawNum, _
-                ProdQty:=RibbonCommands.ProdQty)
+                ProdQty:=RibbonCommands.ProdQty, IsChildOrParent:=(RibbonCommands.IsParentJob Or RibbonCommands.IsChildJob))
     End If
    
     With Sheets("PAGE_Attr")
@@ -586,12 +586,28 @@ End Sub
 
     'Wrapper for ExcelHelpers.GetAQL()
     'Likely only called in the event the user does not have "Auto Load Checklist" enabled
-Private Sub SetAQL(customer As String, drawNum As String, ProdQty As Integer)
-    Dim aqlValues() As String
+Private Sub SetAQL(customer As String, drawNum As String, ProdQty As Integer, IsChildOrParent As Boolean)
+    Dim aqlValues() As String, childOrParent As Boolean
+    childOrParent = (RibbonCommands.IsChildJob Or RibbonCommands.IsParentJob)
+    
     aqlValues = ExcelHelpers.GetAQL(customer:=RibbonCommands.customer, drawNum:=RibbonCommands.drawNum, _
-                                            ProdQty:=RibbonCommands.ProdQty)
+                                            ProdQty:=RibbonCommands.ProdQty, isChildOrParentJob:=childOrParent)
     
     RibbonCommands.samplingSize = aqlValues(0)
     RibbonCommands.custAQL = aqlValues(1)
+    
+    If childOrParent Then
+        RibbonCommands.parentChildSamplingSize = aqlValues(2)
+        RibbonCommands.parentChildFinalAQL = aqlValues(3)
+    End If
         
 End Sub
+
+
+
+
+
+
+
+
+
