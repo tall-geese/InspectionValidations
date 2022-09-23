@@ -19,6 +19,7 @@ Public ProdQty As Integer
 Public dateTravelerPrinted As String
 Public isShortRunEnabled As Boolean, lowerBoundCutoff As Integer, lowerBoundInspections As Integer
 Public samplingSize As String, custAQL As String
+Public parentChildSamplingSize As String, parentChildFinalAQL As String
 Public IsChildJob As Boolean  'example: NV18209-2
 Public IsParentJob As Boolean  'example: NV18209
 
@@ -680,7 +681,9 @@ Private Sub ClearFeatureVariables(Optional preserveRoutines As Boolean)
     custAQL = vbNullString
     IsChildJob = False
     IsParentJob = False
-    
+    parentChildSamplingSize = vbNullString
+    parentChildFinalAQL = vbNullString
+
     'Keep routines for ComboBox
     Erase partRoutineList
     Erase runRoutineList

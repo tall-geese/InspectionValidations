@@ -1,10 +1,10 @@
 VERSION 5.00
 Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} VettingForm 
    Caption         =   "MeasurLink Routine Vetting"
-   ClientHeight    =   8280.001
-   ClientLeft      =   -480
-   ClientTop       =   -1830
-   ClientWidth     =   7455
+   ClientHeight    =   8415.001
+   ClientLeft      =   -690
+   ClientTop       =   -2610
+   ClientWidth     =   7440
    OleObjectBlob   =   "VettingForm.frx":0000
    StartUpPosition =   1  'CenterOwner
 End
@@ -87,6 +87,8 @@ Private Sub UserForm_Initialize()
             'FA and IP routines (machining)
             If (InStr(routineType, "FA_") > 0) Or (InStr(routineType, "IP_") > 0) Then
                 'Specially Handle Child Jobs. Only an FA_FIRST requires inspections
+                
+                If routineType Like "*IP_ASSY*" Then GoTo 10
                 
                 'NextObsReq
                 If RibbonCommands.IsChildJob Then
@@ -280,9 +282,16 @@ UniqueRoutineErr:
    GoTo NextControl
 
 RoutineSwitchErr:
-       result = MsgBox("Error when determining observations needed for : " & RibbonCommands.partRoutineList(0, i) & vbCrLf & _
+        If Err.Number = vbObjectError + 4000 Then
+            MsgBox "No Part Machining Operations Found when checking level for " & fullRoutine & vbCrLf & vbCrLf _
+            & "Either we dont have enough machining operations in house or the OUT ops dont line up with the SWISS/CNC ops", vbCritical
+            Err.Raise Number:=vbObjectError + 9999
+        Else
+            result = MsgBox("Error when determining observations needed for : " & RibbonCommands.partRoutineList(0, i) & vbCrLf & _
                  "UserForm Init" & vbCrLf & Err.Description, vbCritical)
 
+        End If
+       
 End Sub
 
 
@@ -362,7 +371,7 @@ Nexti:
     Next i
         
     Call ExcelHelpers.CreateEmail(qcManager:=qcManagerAlertReq, pmodManager:=pmodManagerAlertReq, cellLead:=cellLeadAlertReq, cellLeadEmail:=cellLeadEmail, _
-                                    jobnum:=RibbonCommands.jobNumUcase, machine:=machineList, failInfo:=failedRoutines)
+                                    jobNum:=RibbonCommands.jobNumUcase, machine:=machineList, failInfo:=failedRoutines)
 
 End Sub
 
@@ -502,9 +511,14 @@ End Sub
     'Wrapper for ExcelHelper.GetAQL()
     'stores the values that we find in RibbonCommands reduce redundant queries
 Private Function GetRequiredInspections(customer As String, drawNum As String, ProdQty As Integer, routineType As String) As String
+    Dim isParentOrChild As Boolean
+    isParentOrChild = (RibbonCommands.IsParentJob Or RibbonCommands.IsChildJob)
+
+        'If we've yet to find the Sampling Size OR the job is a ParentJob (ProdQty will be different)
     If (RibbonCommands.samplingSize = vbNullString And RibbonCommands.custAQL = vbNullString) Or RibbonCommands.IsParentJob Then
         Dim aqlValues() As String
-        aqlValues = ExcelHelpers.GetAQL(customer:=customer, drawNum:=drawNum, ProdQty:=ProdQty, isShortRunEnabled:=RibbonCommands.isShortRunEnabled)
+        aqlValues = ExcelHelpers.GetAQL(customer:=customer, drawNum:=drawNum, ProdQty:=ProdQty, _
+                    isShortRunEnabled:=RibbonCommands.isShortRunEnabled, isChildOrParentJob:=isParentOrChild)
         
         RibbonCommands.samplingSize = aqlValues(0)
         RibbonCommands.custAQL = aqlValues(1)
@@ -515,11 +529,26 @@ Private Function GetRequiredInspections(customer As String, drawNum As String, P
             Me.AQL.Caption = format(RibbonCommands.custAQL, "0.00")
         End If
         
+                'TODO: set the extra AQL Values for Final Dimensional here
+        If isParentOrChild Then
+            RibbonCommands.parentChildSamplingSize = aqlValues(2)
+            RibbonCommands.parentChildFinalAQL = aqlValues(3)
+            
+            Me.FinalAQL.Visible = True
+            Me.FinalAQLHeader.Visible = True
+            
+            If RibbonCommands.parentChildFinalAQL = "100%" Then
+                Me.FinalAQL.Caption = "100%"
+            Else
+                Me.FinalAQL.Caption = format(RibbonCommands.parentChildFinalAQL, "0.00")
+            End If
+        End If
+        
         On Error GoTo LowerBoundErr
         
         If RibbonCommands.isShortRunEnabled Then   'We should have pulled the Cutoff values as well
-            RibbonCommands.lowerBoundCutoff = CInt(aqlValues(2))
-            RibbonCommands.lowerBoundInspections = CInt(aqlValues(3))
+            RibbonCommands.lowerBoundCutoff = CInt(aqlValues(UBound(aqlValues) - 1))
+            RibbonCommands.lowerBoundInspections = CInt(aqlValues(UBound(aqlValues)))
         End If
         
         
@@ -530,7 +559,13 @@ Private Function GetRequiredInspections(customer As String, drawNum As String, P
                 GetRequiredInspections = aqlValues(0)
             End If
         Else
-            GetRequiredInspections = aqlValues(0)
+            
+            If isParentOrChild And routineType Like "*FI_DIM*" Then
+                'Parent/Child sample size unique to the Final Dimensional Routines
+                GetRequiredInspections = aqlValues(2)
+            Else
+                GetRequiredInspections = aqlValues(0)
+            End If
         End If
         
     Else
@@ -539,6 +574,7 @@ Private Function GetRequiredInspections(customer As String, drawNum As String, P
         Else
             Me.AQL.Caption = format(RibbonCommands.custAQL, "0.00")
         End If
+        
         
         On Error GoTo LowerBoundErr
         
@@ -549,7 +585,12 @@ Private Function GetRequiredInspections(customer As String, drawNum As String, P
                 GetRequiredInspections = RibbonCommands.samplingSize
             End If
         Else
-            GetRequiredInspections = RibbonCommands.samplingSize
+        
+            If isParentOrChild And routineType Like "*FI_DIM*" Then
+                GetRequiredInspections = RibbonCommands.parentChildSamplingSize
+            Else
+                GetRequiredInspections = RibbonCommands.samplingSize
+            End If
         End If
         
     End If

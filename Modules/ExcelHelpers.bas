@@ -12,15 +12,34 @@ Private valLookupRange As Range
 Private valRtRange As Range
 
 
-Public Function GetAQL(customer As String, drawNum As String, ProdQty As Integer, Optional isShortRunEnabled As Boolean) As String()
+Public Function GetAQL(customer As String, drawNum As String, ProdQty As Integer, Optional isShortRunEnabled As Boolean, _
+                        Optional isChildOrParentJob As Boolean) As String()
+    'Returns - String()
+        '(0) -> Qty to Inspect
+        '(1) -> AQL
+            '**If its a Parent or Child Job**
+        '(2) -> Qty to Inspect at FI_DIM Routines
+        '(3) -> AQL applicable to FI_DIM Routines
+            '**If its a Short Run Job**
+        '(4) -> Short Run Size Cutoff
+        '(5) -> Minimum Inspections
+                        
+                        
     Dim partWb As Workbook
     Dim aqlWB As Workbook
     Dim aqlVal As String
+    Dim finalAQLVal As String
     Dim reqQty As String
+    Dim finalReqQty As String
     Dim row As String
     Dim col As Integer
+    
     Dim returnAQL() As String
-    ReDim Preserve returnAQL(1)
+    If isChildOrParentJob Then
+        ReDim Preserve returnAQL(3)
+    Else
+        ReDim Preserve returnAQL(1)
+    End If
 
     prefixPath = "J:\Inspection Reports\" & customer & "\" & drawNum & "\" & "Current Revision\"
     
@@ -46,9 +65,20 @@ Public Function GetAQL(customer As String, drawNum As String, ProdQty As Integer
     aqlVal = partWb.Worksheets("ML Frequency Chart").Range("B7").Value
     If aqlVal = "" Then GoTo WbReadErr
     
+    If isChildOrParentJob Then
+        finalAQLVal = partWb.Worksheets("ML Final Chart").Range("E7").Value
+        If finalAQLVal = "" Then GoTo WbFinalReadErr
+    End If
+    
     If aqlVal = "100%" Or ProdQty = 1 Then
         returnAQL(0) = CStr(ProdQty)
         returnAQL(1) = "100%"
+        
+        If isChildOrParentJob Then  'Having a 100% AQL normally will override in the FinalAQL, this shouldn't normally happen though
+            returnAQL(2) = CStr(ProdQty)
+            returnAQL(3) = "100%"
+        End If
+        
         GetAQL = returnAQL
         Exit Function
     End If
@@ -96,6 +126,11 @@ Public Function GetAQL(customer As String, drawNum As String, ProdQty As Integer
     With aqlWB.Worksheets("AQL_SmallLot")
         col = Application.WorksheetFunction.Match(CDbl(aqlVal), .Range("A1:J1"), 0)
         reqQty = .Range(GetAddress(col) & row).Value
+        
+        If isChildOrParentJob Then
+            col = Application.WorksheetFunction.Match(CDbl(finalAQLVal), .Range("A1:J1"), 0)
+            finalReqQty = .Range(GetAddress(col) & row).Value
+        End If
     End With
     
     'sometimes The qty required by an AQL is greater than the amount of parts we've made for some reason
@@ -105,24 +140,34 @@ Public Function GetAQL(customer As String, drawNum As String, ProdQty As Integer
     Else
         returnAQL(0) = CStr(reqQty)
     End If
+    
     returnAQL(1) = aqlVal
     
+    If isChildOrParentJob Then
+        If finalReqQty > ProdQty Then
+            returnAQL(2) = CStr(ProdQty)
+        Else
+            returnAQL(2) = CStr(finalReqQty)
+        End If
+        
+        returnAQL(3) = finalAQLVal
+    End If
+    
+    
+    
     If isShortRunEnabled Then
-        ReDim Preserve returnAQL(3)
+        ReDim Preserve returnAQL(UBound(returnAQL) + 2)
         On Error GoTo LowerBoundErr
         
         With partWb.Worksheets("ML Frequency Chart")
-            returnAQL(2) = .Range("N14").Value
-            returnAQL(3) = .Range("R14").Value
+            returnAQL(UBound(returnAQL) - 1) = .Range("N14").Value
+            returnAQL(UBound(returnAQL)) = .Range("R14").Value
         End With
-    
+            
     End If
     
     
     GetAQL = returnAQL
-    
-    'TODO: takke the change here to set the
-    
     GoTo 10
     
 ProdQtyErr:
@@ -140,6 +185,13 @@ WbReadErr:
     result = MsgBox("There was a problem when trying to read the AQL Level defined on the ML Frequency Chart Worksheet" & _
                     vbCrLf & "Please let a QE know to fill this value in" & vbCrLf & Err.Description, vbExclamation)
     GoTo 10
+    
+WbFinalReadErr:
+    MsgBox "There was a problem when trying to read the AQL Level defined on the ML Final Chart Worksheet" & _
+                    vbCrLf & "Please let a QE know to fill this value in" & vbCrLf & Err.Description, vbExclamation
+    GoTo 10
+    
+
 LowerBoundErr:
     MsgBox "This DrawingNumber was set as LowerBound Frequency Enabled" & vbCrLf & "But Couldn't access the Cutoff amount of Inspections Due" _
                 & vbCrLf & "Please Have a QE fix the IR", vbCritical
