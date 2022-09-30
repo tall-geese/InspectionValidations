@@ -1,10 +1,10 @@
 VERSION 5.00
 Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} VettingForm 
    Caption         =   "MeasurLink Routine Vetting"
-   ClientHeight    =   8415.001
-   ClientLeft      =   -690
-   ClientTop       =   -2610
-   ClientWidth     =   7440
+   ClientHeight    =   8265.001
+   ClientLeft      =   -795
+   ClientTop       =   -2955
+   ClientWidth     =   7455
    OleObjectBlob   =   "VettingForm.frx":0000
    StartUpPosition =   1  'CenterOwner
 End
@@ -214,6 +214,11 @@ ShouldExist:
 '                    .Visible = True
                 Else
                 End If
+                
+            ElseIf RibbonCommands.IsChildJob And routineType Like "*LAST_ARTICLE*" Then
+                .Caption = 1
+                .Visible = True
+                
             Else
                 GoTo RoutineSwitchErr
             End If
