@@ -306,7 +306,7 @@ QueryRoutines:
     Call SetFeatureVariables
     
 20
-    If toggAutoForm_Pressed Then VettingForm.Show
+    If toggAutoForm_Pressed And ProdQty <> 0 Then VettingForm.Show
 10
     'Still gets called if we have an invalid job, it should clean the page and exit out
     Call SetWorkbookInformation
@@ -437,7 +437,13 @@ End Sub
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 
 Public Sub Callback(ByRef control As Office.IRibbonControl)
-    VettingForm.Show
+    If jobNumUcase = vbNullString Then
+        MsgBox "No Job Currently Loaded", vbInformation
+    ElseIf ProdQty = 0 Then
+        MsgBox "There is no Production Qty for this Job" & vbCrLf & "Nothing to Verify", vbInformation
+    Else
+        VettingForm.Show
+    End If
 End Sub
 
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
@@ -707,10 +713,19 @@ Private Sub SetJobVariables(jobNum As String)
     
     'If the prod Qty is null, its because we dont have a single complete Operation
     If VarType(jobInfo(7, 0)) = vbNull Then
-        Err.Raise Number:=vbObjectError + 2100, Description:="No Operations have been completed for this Job." & vbCrLf & "Cant Verify Inspections"
+        Dim result As Integer
+        result = MsgBox("No Production Qty found, Likely because there isn't a completed Operation yet" & vbCrLf _
+            & "Would you like to View the results for this job anyway?", vbYesNo)
+        
+        If result = vbNo Then
+            Err.Raise Number:=vbObjectError + 2100, Description:="No Operations have been completed for this Job." & vbCrLf & "Cant Verify Inspections"
+        Else
+            GoTo skipQty
+        End If
     End If
     
     ProdQty = jobInfo(7, 0)
+skipQty:
     dateTravelerPrinted = jobInfo(8, 0)
     
     Dim shortRunInfo() As Variant
