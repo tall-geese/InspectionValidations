@@ -4,7 +4,7 @@ Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} VettingForm
    ClientHeight    =   8265.001
    ClientLeft      =   -795
    ClientTop       =   -2955
-   ClientWidth     =   7455
+   ClientWidth     =   7515
    OleObjectBlob   =   "VettingForm.frx":0000
    StartUpPosition =   1  'CenterOwner
 End
@@ -90,16 +90,10 @@ Private Sub UserForm_Initialize()
                 
                 If routineType Like "*IP_ASSY*" Then GoTo 10
                 
-                'NextObsReq
+                'childJobs only need FI routines and LAST_ARTICLES
                 If RibbonCommands.IsChildJob Then
-                    If (InStr(routineType, "FIRST") > 0) Then
-                        .Caption = "1"
-                        .Visible = True
-                    Else
-                        .Caption = "0"
-                        .Visible = False
-                    End If
-                
+                    .Caption = "0"
+                    .Visible = False
                     GoTo NextObsReq
                 End If
                 
@@ -168,8 +162,10 @@ ShouldExist:
                     End If
                     
                 ElseIf (InStr(routineType, "IP_1XSHIFT") > 0) Then
+                    Dim inspOffset As Integer
+                    If setupType = "Full" Then inspOffset = 1 Else inspOffset = 0
                     level = GetMachiningLevel(fullRoutine)
-                    .Caption = DatabaseModule.Get1XSHIFTInsps(JobID:=RibbonCommands.jobNumUcase, Operation:=RibbonCommands.partOperations(1, level))
+                    .Caption = DatabaseModule.Get1XSHIFTInsps(JobID:=RibbonCommands.jobNumUcase, Operation:=RibbonCommands.partOperations(1, level)) - inspOffset
                     .Visible = True
                 
                 ElseIf (InStr(routineType, "IP_EDM") > 0) Then
@@ -215,10 +211,14 @@ ShouldExist:
                 Else
                 End If
                 
-            ElseIf RibbonCommands.IsChildJob And routineType Like "*LAST_ARTICLE*" Then
-                .Caption = 1
-                .Visible = True
-                
+            ElseIf routineType Like "*LAST_ARTICLE*" Then
+                If RibbonCommands.IsChildJob Then
+                    .Caption = 1
+                    .Visible = True
+                Else
+                    .Caption = 0
+                    .Visible = False
+                End If
             Else
                 GoTo RoutineSwitchErr
             End If
@@ -303,6 +303,10 @@ End Sub
 Private Sub EmailButton_Click()
     Dim cells() As Variant
     Dim machines() As Variant
+    Dim shiftDetails() As Variant
+        '(0,i) -> OpCode
+        '(1,i) -> OpNum
+        '(2,i) -> ShiftDetails
     
     'If there are no machining operations required, then we dont need to query for a machine name
     If ((Not RibbonCommands.jobOperations) = -1) Then
@@ -317,11 +321,27 @@ Private Sub EmailButton_Click()
         For j = 0 To UBound(RibbonCommands.jobOperations, 2)
             'Determine what machining op the routine should belong to, and pull its machine and cell data
             If ((RibbonCommands.partOperations(1, level) = RibbonCommands.jobOperations(4, j)) _
-                And RibbonCommands.partOperations(2, level) = RibbonCommands.jobOperations(5, j)) Then
+                And RibbonCommands.partOperations(2, level) = RibbonCommands.jobOperations(5, j)) Then   'if the opn numbers and codes match
                     Dim machine As String
                     Dim cell As String
                     machine = RibbonCommands.jobOperations(2, j)
                     cell = RibbonCommands.jobOperations(3, j)
+                    
+                    'If its a 1XShift Routine, then add to our list of shift details
+                    If failedRoutines(0, i) Like "*1XSHIFT*" Then
+                        If (Not shiftDetails) = -1 Then
+                            ReDim Preserve shiftDetails(2, 0)
+                            shiftDetails(0, 0) = RibbonCommands.jobOperations(5, j)
+                            shiftDetails(1, 0) = RibbonCommands.jobOperations(4, j)
+                            shiftDetails(2, 0) = DatabaseModule.Get1XSHIFTDetails(JobID:=RibbonCommands.jobNumUcase, Operation:=RibbonCommands.jobOperations(4, j))
+                        Else
+                            ReDim Preserve shiftDetails(2, UBound(shiftDetails, 2) + 1)
+                            shiftDetails(0, UBound(shiftDetails, 2)) = RibbonCommands.jobOperations(5, j)
+                            shiftDetails(1, UBound(shiftDetails, 2)) = RibbonCommands.jobOperations(4, j)
+                            shiftDetails(2, UBound(shiftDetails, 2)) = DatabaseModule.Get1XSHIFTDetails(JobID:=RibbonCommands.jobNumUcase, Operation:=RibbonCommands.jobOperations(4, j))
+                        End If
+                    
+                    End If
                     
                     'Add to our list of machines and cells responsible for the failures
                     If ((Not cells) = -1 And (Not machines) = -1) Then
@@ -376,7 +396,7 @@ Nexti:
     Next i
         
     Call ExcelHelpers.CreateEmail(qcManager:=qcManagerAlertReq, pmodManager:=pmodManagerAlertReq, cellLead:=cellLeadAlertReq, cellLeadEmail:=cellLeadEmail, _
-                                    jobNum:=RibbonCommands.jobNumUcase, machine:=machineList, failInfo:=failedRoutines)
+                                    jobNum:=RibbonCommands.jobNumUcase, machine:=machineList, failInfo:=failedRoutines, shiftDetails:=shiftDetails)
 
 End Sub
 

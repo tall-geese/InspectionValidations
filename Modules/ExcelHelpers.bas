@@ -203,7 +203,8 @@ LowerBoundErr:
 End Function
 
 
-Public Sub CreateEmail(qcManager As Boolean, cellLead As Boolean, pmodManager As Boolean, cellLeadEmail As String, jobNum As String, machine As String, failInfo() As Variant)
+Public Sub CreateEmail(qcManager As Boolean, cellLead As Boolean, pmodManager As Boolean, cellLeadEmail As String, _
+            jobNum As String, machine As String, failInfo() As Variant, shiftDetails() As Variant)
     Dim oApp As Outlook.Application
     Dim myMail As Outlook.MailItem
     Dim HTMLContent As String
@@ -247,6 +248,12 @@ Public Sub CreateEmail(qcManager As Boolean, cellLead As Boolean, pmodManager As
         
         HTMLContent = HTMLContent & DataSources.EMAIL_BODY_FOOTER
         
+        'Possibly build the next table validating the number of the 1Xshfit inspections
+        If Not Not shiftDetails Then
+            HTMLContent = HTMLContent & "<br><h4>1XShift Production Records</h4>"
+            HTMLContent = HTMLContent & MakeDetailsTable(shiftDetails)
+        End If
+        
         .HTMLBody = HTMLContent
     
     End With
@@ -254,6 +261,44 @@ Public Sub CreateEmail(qcManager As Boolean, cellLead As Boolean, pmodManager As
     oMail.Display
     
 End Sub
+
+Private Function MakeDetailsTable(shiftDetails() As Variant) As String
+    Dim outString As String
+    Dim i As Integer, j As Integer
+    For i = 0 To UBound(shiftDetails, 2)
+        Dim opDetails() As Variant
+        Dim table As String
+        
+        opDetails = shiftDetails(2, i)
+        table = table & "<h5>" & shiftDetails(0, i) & " - " & shiftDetails(1, i) & "</h5>"
+        
+        
+        table = table & "<table class=" & Chr(34) & "MsoTableGrid" & Chr(34) & " border=" & Chr(34) & "1" & Chr(34) & " cellspacing=" & Chr(34) & _
+    "0" & Chr(34) & " cellpadding=" & Chr(34) & "0" & Chr(34) & " style=" & Chr(34) & "border-collapse:collapse;border:none" & Chr(34) & ">"
+        
+        table = table & "<td width=" & Chr(34) & "150" & Chr(34) & ">" & "JobNum" & "</td>"
+        table = table & "<td width=" & Chr(34) & "150" & Chr(34) & ">" & "Emp Name" & "</td>"
+        table = table & "<td width=" & Chr(34) & "150" & Chr(34) & ">" & "Date" & "</td>"
+        table = table & "<td width=" & Chr(34) & "150" & Chr(34) & ">" & "Shift" & "</td>"
+        table = table & "<td width=" & Chr(34) & "150" & Chr(34) & ">" & "Prod Qty" & "</td>"
+    
+        For j = 0 To UBound(opDetails, 2)
+            table = table & "<tr>"
+            For k = 0 To 4
+               table = table & "<td>" & opDetails(k, j) & "</td>"
+            Next k
+            table = table & "</tr>"
+        Next j
+        
+        table = table & "</table>"
+        outString = outString & table
+        table = vbNullString
+    Next i
+    
+    MakeDetailsTable = outString
+    
+
+End Function
 
 Function xTab(num As Integer) As String
     For i = 1 To num
