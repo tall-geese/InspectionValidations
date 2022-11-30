@@ -179,7 +179,7 @@ Function Get1XSHIFTInsps(JobID As String, Operation As Variant) As String
     On Error GoTo ShiftERR
     Set fso = New FileSystemObject
     params = Array("jo.JobNum," & JobID, "jo.OprSeq," & Operation)
-    query = fso.OpenTextFile(DataSources.QUERIES_PATH & "1XSHIFT.sql").ReadAll
+    query = Split(fso.OpenTextFile(DataSources.QUERIES_PATH & "1XSHIFT.sql").ReadAll, ";")(0)
 
     Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.E10)
     
@@ -195,6 +195,24 @@ ShiftERR:
     End If
     
 End Function
+
+Function Get1XSHIFTDetails(JobID As String, Operation As Variant) As Variant()
+    On Error GoTo ShiftDetailsERR
+    Set fso = New FileSystemObject
+    params = Array("jo.JobNum," & JobID, "jo.OprSeq," & Operation)
+    query = Split(fso.OpenTextFile(DataSources.QUERIES_PATH & "1XSHIFT.sql").ReadAll, ";")(1)
+
+    Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.E10)
+    
+    Get1XSHIFTDetails = sqlRecordSet.GetRows()
+    Exit Function
+    
+ShiftDetailsERR:
+        Err.Raise Number:=Err.Number, Description:="Func: E10-Get1XSHIFTDeatils" & vbCrLf & Err.Description
+    
+End Function
+
+
 
 Function GetPartOperationInfo(JobID As String) As Variant()
     On Error GoTo PartOpErr
