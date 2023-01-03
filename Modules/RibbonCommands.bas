@@ -726,8 +726,11 @@ Private Sub SetJobVariables(jobNum As String)
     
     ProdQty = jobInfo(7, 0)
 skipQty:
+
+    If IsNull(jobInfo(8, 0)) Then Err.Raise vbObjectError + 1000, Description:="Traveler has not been printed yet" & vbCrLf & "Can't Run Report"
     dateTravelerPrinted = jobInfo(8, 0)
     
+
     Dim shortRunInfo() As Variant
     shortRunInfo = GetFlaggedShortRunIR(drawNum:=drawNum, rev:=rev, datePrinted:=dateTravelerPrinted)
     If Not Not shortRunInfo Then
