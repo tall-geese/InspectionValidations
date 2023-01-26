@@ -8,6 +8,8 @@ Attribute VB_Name = "RibbonCommands"
 '       3. we should ask the DataBase Module to perform our check on whether a jobNumber actually exists and is valid
 '*************************************************************************************************
 
+Option Compare Text
+
 'Epicor Universal Job Info
 Public jobNumUcase As String
 Public customer As String
@@ -238,7 +240,7 @@ QueryRoutines:
         If ((Not featureCount) = -1) Then 'If we get returned an empty array, then the value is 0
             runRoutineList(2, i) = 0
         Else
-            If routine Like "*FI_DIM*" Then
+            If routine Like "*FI_DIM*" Or routine Like "*FI_OP*" Then
                 'FI_DIM routines. Above we checked there we at least a single inspection
                 'Furthermore, if we have variable features we need to make sure we have enough good inspections of those
                 'Since we only ever do a single observation of the attribute features, looking at all features
