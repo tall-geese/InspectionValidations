@@ -307,6 +307,12 @@ Private Sub EmailButton_Click()
         '(0,i) -> OpCode
         '(1,i) -> OpNum
         '(2,i) -> ShiftDetails
+    Dim shiftTraceability() As Variant
+        '(0,i) -> ObsTimestamp
+        '(1,i) -> EmpID
+        '(2,i) -> Obs#
+        '(3,i) -> Pass / Fail
+
     
     'If there are no machining operations required, then we dont need to query for a machine name
     If ((Not RibbonCommands.jobOperations) = -1) Then
@@ -340,7 +346,20 @@ Private Sub EmailButton_Click()
                             shiftDetails(1, UBound(shiftDetails, 2)) = RibbonCommands.jobOperations(4, j)
                             shiftDetails(2, UBound(shiftDetails, 2)) = DatabaseModule.Get1XSHIFTDetails(JobID:=RibbonCommands.jobNumUcase, Operation:=RibbonCommands.jobOperations(4, j))
                         End If
-                    
+                        
+                        'We also want to populate the Inspections taken for the 1XSHIFT
+                        If (Not shiftTraceability) = -1 Then
+                            ReDim Preserve shiftTraceability(2, 0)
+                            shiftTraceability(0, 0) = RibbonCommands.jobNumUcase
+                            shiftTraceability(1, 0) = failedRoutines(0, i)
+                            shiftTraceability(2, 0) = DatabaseModule.GetAllFeatureTraceabilityData(jobNum:=RibbonCommands.jobNumUcase, routine:=CStr(failedRoutines(0, i)), FILL_EMP_IDS:=True)
+                        Else
+                            ReDim Preserve shiftTraceability(2, UBound(shiftTraceability, 2) + 1)
+                            shiftTraceability(0, UBound(shiftTraceability, 2)) = RibbonCommands.jobNumUcase
+                            shiftTraceability(1, UBound(shiftTraceability, 2)) = failedRoutines(0, i)
+                            shiftTraceability(2, UBound(shiftTraceability, 2)) = DatabaseModule.GetAllFeatureTraceabilityData(jobNum:=RibbonCommands.jobNumUcase, routine:=CStr(failedRoutines(0, i)), FILL_EMP_IDS:=True)
+                        End If
+                        
                     End If
                     
                     'Add to our list of machines and cells responsible for the failures
@@ -396,7 +415,8 @@ Nexti:
     Next i
         
     Call ExcelHelpers.CreateEmail(qcManager:=qcManagerAlertReq, pmodManager:=pmodManagerAlertReq, cellLead:=cellLeadAlertReq, cellLeadEmail:=cellLeadEmail, _
-                                    jobNum:=RibbonCommands.jobNumUcase, machine:=machineList, failInfo:=failedRoutines, shiftDetails:=shiftDetails)
+                                    jobNum:=RibbonCommands.jobNumUcase, machine:=machineList, failInfo:=failedRoutines, _
+                                    shiftDetails:=shiftDetails, shiftTraceability:=shiftTraceability)
 
 End Sub
 

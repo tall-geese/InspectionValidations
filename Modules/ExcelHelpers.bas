@@ -204,7 +204,7 @@ End Function
 
 
 Public Sub CreateEmail(qcManager As Boolean, cellLead As Boolean, pmodManager As Boolean, cellLeadEmail As String, _
-            jobNum As String, machine As String, failInfo() As Variant, shiftDetails() As Variant)
+            jobNum As String, machine As String, failInfo() As Variant, shiftDetails() As Variant, shiftTraceability() As Variant)
     Dim oApp As Outlook.Application
     Dim myMail As Outlook.MailItem
     Dim HTMLContent As String
@@ -249,9 +249,12 @@ Public Sub CreateEmail(qcManager As Boolean, cellLead As Boolean, pmodManager As
         HTMLContent = HTMLContent & DataSources.EMAIL_BODY_FOOTER
         
         'Possibly build the next table validating the number of the 1Xshfit inspections
-        If Not Not shiftDetails Then
+        If Not Not shiftDetails And Not Not shiftTraceability Then
             HTMLContent = HTMLContent & "<br><h4>1XShift Production Records</h4>"
-            HTMLContent = HTMLContent & MakeDetailsTable(shiftDetails)
+            HTMLContent = HTMLContent & MakeProductionDetailsTable(shiftDetails)
+            
+            HTMLContent = HTMLContent & "<br><h4>1XShift Inspection Records</h4>"
+            HTMLContent = HTMLContent & MakeInspectionDetailsTable(shiftTraceability)
         End If
         
         .HTMLBody = HTMLContent
@@ -262,7 +265,9 @@ Public Sub CreateEmail(qcManager As Boolean, cellLead As Boolean, pmodManager As
     
 End Sub
 
-Private Function MakeDetailsTable(shiftDetails() As Variant) As String
+    'TODO: this should be modular to do the same operation for the MeasurLink inspections of the 1XSHIFT routine, dont have time now
+
+Private Function MakeProductionDetailsTable(shiftDetails() As Variant) As String
     Dim outString As String
     Dim i As Integer, j As Integer
     For i = 0 To UBound(shiftDetails, 2)
@@ -278,13 +283,14 @@ Private Function MakeDetailsTable(shiftDetails() As Variant) As String
         
         table = table & "<td width=" & Chr(34) & "150" & Chr(34) & ">" & "JobNum" & "</td>"
         table = table & "<td width=" & Chr(34) & "150" & Chr(34) & ">" & "Emp Name" & "</td>"
+        table = table & "<td width=" & Chr(34) & "150" & Chr(34) & ">" & "Emp ID" & "</td>"
         table = table & "<td width=" & Chr(34) & "150" & Chr(34) & ">" & "Date" & "</td>"
         table = table & "<td width=" & Chr(34) & "150" & Chr(34) & ">" & "Shift" & "</td>"
         table = table & "<td width=" & Chr(34) & "150" & Chr(34) & ">" & "Prod Qty" & "</td>"
     
         For j = 0 To UBound(opDetails, 2)
             table = table & "<tr>"
-            For k = 0 To 4
+            For k = 0 To 5
                table = table & "<td>" & opDetails(k, j) & "</td>"
             Next k
             table = table & "</tr>"
@@ -295,10 +301,48 @@ Private Function MakeDetailsTable(shiftDetails() As Variant) As String
         table = vbNullString
     Next i
     
-    MakeDetailsTable = outString
+    MakeProductionDetailsTable = outString
     
 
 End Function
+
+Private Function MakeInspectionDetailsTable(shiftTraceability() As Variant) As String
+    Dim outString As String
+    Dim i As Integer, j As Integer
+    For i = 0 To UBound(shiftTraceability, 2)
+        Dim opDetails() As Variant
+        Dim table As String
+        
+        opDetails = shiftTraceability(2, i)
+        table = table & "<h5>" & shiftTraceability(0, i) & " - " & shiftTraceability(1, i) & "</h5>"   'JobNum - Routine
+        
+        
+        table = table & "<table class=" & Chr(34) & "MsoTableGrid" & Chr(34) & " border=" & Chr(34) & "1" & Chr(34) & " cellspacing=" & Chr(34) & _
+    "0" & Chr(34) & " cellpadding=" & Chr(34) & "0" & Chr(34) & " style=" & Chr(34) & "border-collapse:collapse;border:none" & Chr(34) & ">"
+        
+        table = table & "<td width=" & Chr(34) & "150" & Chr(34) & ">" & "ObsTimeStamp" & "</td>"
+        table = table & "<td width=" & Chr(34) & "150" & Chr(34) & ">" & "EmpID" & "</td>"
+        table = table & "<td width=" & Chr(34) & "150" & Chr(34) & ">" & "Obs#" & "</td>"
+        table = table & "<td width=" & Chr(34) & "150" & Chr(34) & ">" & "Pass/Fail" & "</td>"
+    
+        For j = 0 To UBound(opDetails, 2)
+            table = table & "<tr>"
+            For k = 0 To 3
+               table = table & "<td>" & opDetails(k, j) & "</td>"
+            Next k
+            table = table & "</tr>"
+        Next j
+        
+        table = table & "</table>"
+        outString = outString & table
+        table = vbNullString
+    Next i
+    
+    MakeInspectionDetailsTable = outString
+    
+
+End Function
+
 
 Function xTab(num As Integer) As String
     For i = 1 To num

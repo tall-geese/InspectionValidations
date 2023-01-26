@@ -5,5 +5,5 @@ FROM dbo.Part p
 LEFT OUTER JOIN dbo.Feature ft ON p.PartID = ft.PartID 
 INNER JOIN dbo.RoutineFeatures rtf ON rtf.FeatureID = ft.FeatureID 
 LEFT OUTER JOIN dbo.Routine rt ON rt.RoutineID = rtf.RoutineID 
-WHERE p.PartName = ?
+WHERE p.PartName = ? AND rt.RoutineName NOT LIKE '%OBSOLETE%'
 GROUP BY rt.RoutineName 

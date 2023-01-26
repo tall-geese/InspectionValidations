@@ -30,9 +30,10 @@ AND ldt.Shift IN (1,2) AND ldt.ReWork = 0) src
 GROUP BY src.JobNum ;
 
 
-SELECT jo.JobNum, emp.Name, ldt.PayrollDate, ldt.Shift, ldt.LaborQty
+SELECT jo.JobNum, emp.Name, emp.EmpID, ldt.PayrollDate, ldt.Shift, ldt.LaborQty
 FROM EpicorLive11.dbo.JobOper jo 
 INNER JOIN EpicorLive11.dbo.LaborDtl ldt ON jo.OprSeq = ldt.OprSeq AND ldt.JobNum = jo.JobNum 
 LEFT OUTER JOIN EpicorLive11.dbo.EmpBasic emp ON ldt.EmployeeNum = emp.EmpID 
 WHERE jo.JobNum = ? AND jo.OprSeq = ? AND ldt.LaborNote <> 'Adjustment' AND ldt.LaborNote NOT LIKE ('%DMR%') AND ldt.LaborQty > 0 
 AND ldt.Shift IN (1,2) AND ldt.ReWork = 0
+

@@ -417,7 +417,7 @@ AllFeatureValuesErr:
 End Function
 
     'Date, Employee ID - Filter out failed observations
-Function GetFeatureTraceabilityData(jobNum As String, routine As String, Optional FI_DIM_ROUTINE As Boolean) As Variant()
+Function GetFeatureTraceabilityData(jobNum As String, routine As String, Optional FI_DIM_ROUTINE As Boolean, Optional FILL_EMP_IDS As Boolean) As Variant()
     On Error GoTo FeatureTraceabilityErr
     Set fso = New FileSystemObject
     
@@ -429,8 +429,16 @@ Function GetFeatureTraceabilityData(jobNum As String, routine As String, Optiona
         params = Array("r.RunName," & jobNum, "rt.RoutineName," & routine, "r.RunName," & jobNum, "rt.RoutineName," & routine, "r.RunName," & jobNum, "rt.RoutineName," & routine)
     End If
     Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.ML7)
-
-    GetFeatureTraceabilityData = sqlRecordSet.GetRows()
+    
+    Dim records() As Variant
+    records = sqlRecordSet.GetRows()
+    
+    If FILL_EMP_IDS Then
+        records = PopulateNullIDs(records:=records)
+    End If
+    
+    GetFeatureTraceabilityData = records
+    
     Exit Function
     
 FeatureTraceabilityErr:
@@ -444,7 +452,7 @@ FeatureTraceabilityErr:
 End Function
 
     'Date, Employee ID - Dont Filter out failed observations
-Function GetAllFeatureTraceabilityData(jobNum As String, routine As String) As Variant()
+Function GetAllFeatureTraceabilityData(jobNum As String, routine As String, Optional FILL_EMP_IDS As Boolean) As Variant()
     On Error GoTo AllFeatureTraceabilityErr
     Set fso = New FileSystemObject
     query = Split(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_ObsTraceability.sql").ReadAll, ";")(1)
@@ -452,7 +460,15 @@ Function GetAllFeatureTraceabilityData(jobNum As String, routine As String) As V
     
     Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.ML7)
 
-    GetAllFeatureTraceabilityData = sqlRecordSet.GetRows()
+    Dim records() As Variant
+    records = sqlRecordSet.GetRows()
+    
+    
+    If FILL_EMP_IDS Then
+        records = PopulateNullIDs(records:=records)
+    End If
+    
+    GetAllFeatureTraceabilityData = records
     Exit Function
     
 AllFeatureTraceabilityErr:
@@ -476,6 +492,8 @@ Function GetFinalAttrHeaders(jobNum As String, routine As String) As Variant()
     Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.ML7)
 
     GetFinalAttrHeaders = sqlRecordSet.GetRows()
+    
+    
     Exit Function
     
 GetFinalAttrHeadersErr:
@@ -694,6 +712,37 @@ GetFlaggedShortRunIRErr:
     End If
 
 End Function
+
+
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+'               Helper Functions
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+Private Function PopulateNullIDs(records() As Variant) As Variant()
+'ML only starts tracks the empID when it gets an observation by a new Employee
+'So until another emp comes along and starts taking observations, all the traceability will be NULL
+    'records() -> Variant
+    '(0,i) -> ObsTimestamp
+    '(1,i) -> EmpID
+    '(2,i) -> Obs#
+    '(3,i) -> Pass / Fail
+    
+    Dim i As Integer, empName As String
+    For i = 0 To UBound(records, 2)
+        If IsNull(records(1, i)) Then
+            'Set as the prev observed employee
+            records(1, i) = empName
+        Else
+            'Set the emp name for future Null Values
+            If records(1, i) <> empName Then
+                empName = records(1, i)
+            End If
+        End If
+    Next i
+    
+    PopulateNullIDs = records
+
+End Function
+
 
 
 
