@@ -125,6 +125,7 @@ Public Sub jbEditText_OnChange(ByRef control As Office.IRibbonControl, ByRef Tex
     partOperations = DatabaseModule.GetPartOperationInfo(jobNumUcase)
     jobOperations = DatabaseModule.GetJobOperationInfo(jobNumUcase)
     
+    On Error GoTo QueryRoutines
     'If there are no inside mach ops or there are less then there should be according to the MoM, flag that a stage is missing
     If ((Not jobOperations) = -1 And (Not Not partOperations)) Then
         machineStageMissing = True
@@ -593,8 +594,9 @@ Public Function GetMachiningLevel(routineName As Variant) As Integer
             If foundLevel <= maxLevel Then
                 GetMachiningLevel = foundLevel
             Else
-                'Return an error here, this should be impossible
-                Err.Raise Number:=vbObjectError + 2500, Description:="Routine's Machining Level Number exceeds the Number of Machining Operations Found"
+                'Return an error here. Routine Level greater than the number of operations we have? this should be impossible
+                Err.Raise Number:=vbObjectError + 2500, Description:="Routine's Machining Level Number exceeds the Number of Machining Operations Found" _
+                    & vbCrLf & vbCrLf & "Have a QE Double check that the Job MoMs are the same as the Part MoMs in Epicor"
             End If
         Else
             GetMachiningLevel = 0

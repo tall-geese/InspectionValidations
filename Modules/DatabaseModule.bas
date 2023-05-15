@@ -212,6 +212,22 @@ ShiftDetailsERR:
     
 End Function
 
+Function Get1XSHIFTTimeFrames(JobID As String, Operation As Variant) As Variant()
+    On Error GoTo ShiftTimeFramesERR
+    Set fso = New FileSystemObject
+    params = Array("jo.JobNum," & JobID, "jo.OprSeq," & Operation)
+    query = Split(fso.OpenTextFile(DataSources.QUERIES_PATH & "1XSHIFT.sql").ReadAll, ";")(2)
+
+    Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.E10)
+    
+    Get1XSHIFTTimeFrames = sqlRecordSet.GetRows()
+    Exit Function
+    
+ShiftFramesERR:
+        Err.Raise Number:=Err.Number, Description:="Func: E10-Get1XSHIFTTimeFrames" & vbCrLf & Err.Description
+    
+End Function
+
 
 
 Function GetPartOperationInfo(JobID As String) As Variant()
@@ -399,6 +415,7 @@ Function GetAllFeatureMeasuredValues(jobNum As String, routine As String, delimF
     query = Replace(Split(fso.OpenTextFile(DataSources.QUERIES_PATH & "ML_FeatureMeasurements.sql").ReadAll, ";")(1), "{Features}", delimFeatures)
     params = Array("r.RunName," & jobNum, "rt.RoutineName," & routine, "r.RunName," & jobNum, "rt.RoutineName," & routine)
     
+    Debug.Print ("routine: " & routine)
     Debug.Print query
     
     Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.ML7)

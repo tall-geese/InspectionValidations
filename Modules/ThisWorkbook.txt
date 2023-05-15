@@ -16,6 +16,8 @@ Attribute VB_Exposed = True
 '               populateHeaderFeatureInfo(), populateFeatureMeasuredValues(), populateTraceabilityInfo()
 '*************************************************************************************************
 
+
+
 Sub populateJobHeaders(jobNum As String, routine As Variant, customer As String, machine As Variant, partNum As String, rev As String, partDesc As String)
     On Error GoTo PopHeadersErr:
     Call Cleanup
@@ -37,7 +39,7 @@ Sub populateJobHeaders(jobNum As String, routine As Variant, customer As String,
         .Range("G4").Value = partDesc
         
         
-        .protect Password:="3063bqa", AllowFormattingCells:=True
+        .Protect Password:="3063bqa", AllowFormattingCells:=True
     End With
     Exit Sub
 
@@ -71,7 +73,7 @@ Public Sub populateReport(featureInfo() As Variant, featureMeasurements() As Var
     Call populateTraceabilityInfo(featureTraceabilityInfo:=featureTraceability, pages:=applicablePages)
     
     For i = 1 To applicablePages
-        ThisWorkbook.Worksheets("PAGE " & i).protect Password:="3063bqa"
+        ThisWorkbook.Worksheets("PAGE " & i).Protect Password:="3063bqa"
     Next i
 
     Application.ScreenUpdating = True
@@ -140,7 +142,7 @@ Public Sub populateAttrSheet(attFeatHeaders() As Variant, attFeatResults() As Va
             End If
         Next i
         
-        .protect Password:="3063bqa"
+        .Protect Password:="3063bqa"
     End With
     
     If noVariables Then Worksheets("PAGE 1").Visible = False
@@ -149,7 +151,7 @@ Public Sub populateAttrSheet(attFeatHeaders() As Variant, attFeatResults() As Va
 attSheetErr:
     With Sheets("PAGE_Attr")
         .Visible = False
-        .protect Password:="3063bqa"
+        .Protect Password:="3063bqa"
     
     End With
     
@@ -363,7 +365,7 @@ Private Sub Cleanup()
         .Range("G4").Value = ""
 
 
-        .protect Password:="3063bqa", AllowFormattingCells:=True
+        .Protect Password:="3063bqa", AllowFormattingCells:=True
         .Visible = True
 
     End With
@@ -398,7 +400,7 @@ Private Sub Cleanup()
                     .Font.Color = RGB(0, 0, 0)
                 End With
                 
-                .protect Password:="3063bqa"
+                .Protect Password:="3063bqa"
                 
                 'Leave only the first page visible
                 If .Name <> "PAGE 1" Then
@@ -421,7 +423,7 @@ Private Sub Cleanup()
         End With
     
         .Visible = False
-        .protect Password:="3063bqa"
+        .Protect Password:="3063bqa"
     End With
     
     ThisWorkbook.Worksheets("PAGE 1").Activate
@@ -602,12 +604,5 @@ Private Sub SetAQL(customer As String, drawNum As String, ProdQty As Integer, Is
     End If
         
 End Sub
-
-
-
-
-
-
-
 
 

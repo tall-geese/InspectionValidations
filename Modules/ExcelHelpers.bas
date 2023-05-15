@@ -27,6 +27,7 @@ Public Function GetAQL(customer As String, drawNum As String, ProdQty As Integer
                         
     Dim partWb As Workbook
     Dim aqlWB As Workbook
+    Dim aqlSheet As Worksheet
     Dim aqlVal As String
     Dim finalAQLVal As String
     Dim reqQty As String
@@ -86,7 +87,41 @@ Public Function GetAQL(customer As String, drawNum As String, ProdQty As Integer
     Set aqlWB = Workbooks.Open(Filename:=DataSources.IR_TABLES_WB, UpdateLinks:=0, ReadOnly:=True)
     
     
-    Select Case ProdQty
+    
+    If customer = "SeaSpine" Then
+        Set aqlSheet = aqlWB.Sheets("AQL_Original")
+        Select Case ProdQty
+        Case 2 To 8
+            row = "2"
+        Case 9 To 15
+            row = "3"
+        Case 16 To 25
+            row = "4"
+        Case 26 To 50
+            row = "5"
+        Case 51 To 90
+            row = "6"
+        Case 91 To 150
+            row = "7"
+        Case 151 To 280
+            row = "8"
+        Case 281 To 500
+            row = "9"
+        Case 501 To 1200
+            row = "10"
+        Case 1201 To 3200
+            row = "11"
+        Case 3201 To 10000
+            row = "12"
+        Case 10001 To 9999
+            row = "13"
+        Case Else
+            GoTo ProdQtyErr
+        End Select
+    
+    Else
+        Set aqlSheet = aqlWB.Worksheets("AQL_SmallLot")
+        Select Case ProdQty
         Case 2 To 4
             row = "2"
         Case 5 To 10
@@ -121,9 +156,10 @@ Public Function GetAQL(customer As String, drawNum As String, ProdQty As Integer
             row = "17"
         Case Else
             GoTo ProdQtyErr
-    End Select
+        End Select
+    End If
     
-    With aqlWB.Worksheets("AQL_SmallLot")
+    With aqlSheet
         col = Application.WorksheetFunction.Match(CDbl(aqlVal), .Range("A1:J1"), 0)
         reqQty = .Range(GetAddress(col) & row).Value
         
@@ -202,6 +238,19 @@ LowerBoundErr:
     
 End Function
 
+Public Sub testEmail()
+    Dim thing() As Variant
+    
+    CreateEmail True, False, False, "asdf", "NV12345", _
+        "mach", thing, thing, thing
+    
+    
+
+
+
+End Sub
+
+
 
 Public Sub CreateEmail(qcManager As Boolean, cellLead As Boolean, pmodManager As Boolean, cellLeadEmail As String, _
             jobNum As String, machine As String, failInfo() As Variant, shiftDetails() As Variant, shiftTraceability() As Variant)
@@ -224,6 +273,7 @@ Public Sub CreateEmail(qcManager As Boolean, cellLead As Boolean, pmodManager As
             .To = .To & ";" & DataSources.PMODMAN_TO
         End If
         
+        .CC = DataSources.EMAIL_CC
         .Subject = Replace(DataSources.EMAIL_SUBJECT, "{Job}", jobNum)
         .Subject = Replace(.Subject, "{Machine}", machine)
         
@@ -236,13 +286,17 @@ Public Sub CreateEmail(qcManager As Boolean, cellLead As Boolean, pmodManager As
         HTMLContent = HTMLContent & "<td width=" & Chr(34) & "100" & Chr(34) & ">" & "ObsReq" & "</td>"
         HTMLContent = HTMLContent & "<td width=" & Chr(34) & "100" & Chr(34) & ">" & "ObsFound" & "</td>"
     
-        For i = 0 To UBound(failInfo, 2)
-            HTMLContent = HTMLContent & "<tr>"
-            For j = 0 To 2
-               HTMLContent = HTMLContent & "<td>" & failInfo(j, i) & "</td>"
-            Next j
-            HTMLContent = HTMLContent & "</tr>"
-        Next i
+        'failed Routine Name, its Obs_Req and its Obs_Found
+        If Not Not failInfo Then
+            
+            For i = 0 To UBound(failInfo, 2)
+                HTMLContent = HTMLContent & "<tr>"
+                For j = 0 To 2
+                   HTMLContent = HTMLContent & "<td>" & failInfo(j, i) & "</td>"
+                Next j
+                HTMLContent = HTMLContent & "</tr>"
+            Next i
+        End If
         
         HTMLContent = HTMLContent & "</table>"
         

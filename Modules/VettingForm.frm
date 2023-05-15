@@ -30,17 +30,14 @@ Dim cellLeadAlertReq As Boolean
 Dim qcManagerAlertReq As Boolean
 Dim pmodManagerAlertReq As Boolean
 Dim failedRoutines() As Variant
+    '(0, i) -> Routine_Name
+    '(1, i) -> Obs_Req
+    '(2, i) -> Obs_Found
+'failedRoutines(0, index) = Me.RoutineFrame(location).Caption
+'    failedRoutines(1, index) = Me.ObsReq(location).Caption
+'    failedRoutines(2, index) = Me.ObsFound(location).Caption
 Dim aqlQuantity As String
 
-
-
-Private Sub Label42_Click()
-
-End Sub
-
-Private Sub Routine1_Click()
-
-End Sub
 
 '****************************************************************************************
 '               UserForm Callbacks
@@ -134,7 +131,7 @@ ShouldExist:
                         .Visible = False
                     End If
                     
-                ElseIf (InStr(routineType, "FA_SYLVAC") > 0 Or InStr(routineType, "FA_CMM") > 0 Or InStr(routineType, "FA_RAMPROG") > 0) Then
+                ElseIf (InStr(routineType, "FA_SYLVAC") > 0 Or InStr(routineType, "FA_CMM") > 0 Or InStr(routineType, "FA_RAMPROG") > 0 Or InStr(routineType, "FA_CT") > 0) Then
                     If (setupType = "Full") Then
                         .Caption = "1"
                         .Visible = True
@@ -263,6 +260,8 @@ NextControl:
     Call VetInspections
     
     If (cellLeadAlertReq Or qcManagerAlertReq Or pmodManagerAlertReq) Then
+        'TODO: if we have only the 1XShift inspection and its not a true failure
+            'Then we should enable everything and continue to set focus to the email button
         Me.PrintButton.Enabled = False
         Me.EmailButton.Enabled = True
         Me.EmailButton.SetFocus
@@ -503,6 +502,8 @@ End Sub
 
 
 Private Sub setFailure(location As Variant, routine As String)
+    'TODO: in the event of a 1XShift routine isnpeciton, then we have to check if this is REALLY a failure
+
     'Set failure picture
     With Me.ResultFrame.Controls(location)
         .Picture = LoadPicture(DataSources.FAIL_IMG_PATH)
