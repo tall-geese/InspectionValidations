@@ -25,7 +25,7 @@ LEFT OUTER JOIN dbo.CustomFieldValue cfv ON f.FeatureID = cfv.ApplyToID
 LEFT OUTER JOIN dbo.CustomFieldValue cfv2 ON f.FeatureID = cfv2.ApplyToID
 LEFT OUTER JOIN dbo.CustomFieldValue cfv3 ON f.FeatureID = cfv3.ApplyToID
 LEFT OUTER JOIN dbo.CustomFieldValue cfv4 ON f.FeatureID = cfv4.ApplyToID
-WHERE r.RunName = ? AND rt.RoutineName = ? AND cfv.CustomFieldID = 16 AND cfv2.CustomFieldID = 11 AND cfv3.CustomFieldID = 3 AND cfv4.CustomFieldID = 13
+WHERE r.RunName = ? AND rt.RoutineName = ? AND cfv.CustomFieldID = 16 AND cfv2.CustomFieldID = 11 AND cfv3.CustomFieldID = 3 AND cfv4.CustomFieldID = 13 AND f.FeatureName NOT LIKE '%_DEV' 
 	
 	
 
