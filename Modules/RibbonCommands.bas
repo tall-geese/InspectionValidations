@@ -51,6 +51,7 @@ Public runRoutineList() As Variant
     '(3,i) -> setupType
     '(4,i) -> machine
     '(5,i) -> cell
+    '(6,i) -> OprSeq
 
 'Features and Measurement Information, applicable to the currently selected Routine
 Dim featureHeaderInfo() As Variant
@@ -220,7 +221,7 @@ QueryRoutines:
     
     'Pass the results of the temp to the runRoutine List, we're going to add other dimensions where we
         'Keep track of the #ObsFound, setupType, machine and cell
-    ReDim Preserve runRoutineList(5, UBound(tempRoutineArray, 2))
+    ReDim Preserve runRoutineList(6, UBound(tempRoutineArray, 2))
     For i = 0 To UBound(tempRoutineArray, 2)
         runRoutineList(0, i) = tempRoutineArray(0, i)
         runRoutineList(1, i) = tempRoutineArray(1, i)
@@ -272,6 +273,7 @@ QueryRoutines:
                     runRoutineList(3, i) = jobOperations(1, j) 'setupType
                     runRoutineList(4, i) = jobOperations(2, j) 'machine
                     runRoutineList(5, i) = jobOperations(3, j) 'cell
+                    runRoutineList(6, i) = jobOperations(4, j) 'OprSeq
                 End If
             Next j
             
@@ -279,12 +281,14 @@ QueryRoutines:
             runRoutineList(3, i) = "None" 'setupType
             runRoutineList(4, i) = "NA" 'machine
             runRoutineList(5, i) = "NA" 'cell
+            runRoutineList(6, i) = jobOperations(4, j) 'OprSeq
             
         Else
             'The part only has a single machining operation, this is the bread and butter situation
             runRoutineList(3, i) = jobOperations(1, 0) 'setupType
             runRoutineList(4, i) = jobOperations(2, 0) 'machine
             runRoutineList(5, i) = jobOperations(3, 0) 'cell
+            runRoutineList(6, i) = jobOperations(4, j) 'OprSeq
         End If
     Next i
     

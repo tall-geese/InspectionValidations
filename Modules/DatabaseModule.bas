@@ -330,6 +330,27 @@ AllPartOpsErr:
 
 End Function
 
+    'Get the total Number of Parts brought into the operation, determine Parent's Required inspections for certain operations
+Function GetOpTotalQty(jobNum As String, oprSeq As Variant) As Integer
+    On Error GoTo GetOpTotalQtyErr
+    Set fso = New FileSystemObject
+    params = Array("ld.JobNum," & jobNum, "ld.OprSeq," & oprSeq)
+    query = "SELECT SUM(ld.ScrapQty) + SUM(ld.LaborQty) " & _
+            "FROM dbo.LaborDtl ld " & _
+            "WHERE ld.JobNum = ? AND ld.OprSeq = ? AND ld.LaborQty > 0"
+
+    Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.E10)
+    
+    GetOpTotalQty = sqlRecordSet.Fields(0)
+    Exit Function
+    
+GetOpTotalQtyErr:
+   'PartNum / Rev doesn't exist, someone may have massaged the revision at the JobEntry form
+    Err.Raise Number:=Err.Number, Description:="Func: E10-GetOpTotalQty" & vbCrLf & Err.Description
+
+End Function
+
+
 
 
 
