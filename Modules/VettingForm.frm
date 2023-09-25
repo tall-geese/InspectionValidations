@@ -1,10 +1,10 @@
 VERSION 5.00
 Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} VettingForm 
    Caption         =   "MeasurLink Routine Vetting"
-   ClientHeight    =   8265.001
-   ClientLeft      =   -795
-   ClientTop       =   -2955
-   ClientWidth     =   7515
+   ClientHeight    =   8175
+   ClientLeft      =   -1230
+   ClientTop       =   -4590
+   ClientWidth     =   7215
    OleObjectBlob   =   "VettingForm.frx":0000
    StartUpPosition =   1  'CenterOwner
 End
@@ -87,10 +87,22 @@ Private Sub UserForm_Initialize()
                 
                 If routineType Like "*IP_ASSY*" Then GoTo 10
                 
-                'childJobs only need FI routines and LAST_ARTICLES
-                If RibbonCommands.IsChildJob Then
-                    .Caption = "0"
+                'childJobs only need FI routines and FA_LAST_ARTICLES
+                If routineType Like "*FA_LAST_ARTICLE*" Or routineType Like "*FA_CTS_LAST_ARTICLE*" Then
+                    If RibbonCommands.IsChildJob Then
+                        .Caption = 1
+                        .Visible = True
+                    Else
+                        .Caption = 0
+                        .Visible = False
+                    End If
+                    
+                    GoTo NextObsReq
+                ElseIf RibbonCommands.IsChildJob Then
+                    .Caption = 0
                     .Visible = False
+                
+                    
                     GoTo NextObsReq
                 End If
                 
@@ -158,6 +170,7 @@ ShouldExist:
                         .Visible = False
                     End If
                     
+                    
                 ElseIf (InStr(routineType, "IP_1XSHIFT") > 0) Then
                     Dim inspOffset As Integer
                     If setupType = "Full" Then inspOffset = 1 Else inspOffset = 0
@@ -176,8 +189,32 @@ ShouldExist:
                 Else
                     'Anything not covered above should be AQL quantity, and is likely an IP Routine
                     If RibbonCommands.IsParentJob Then  'Parent jobs should have AQL based off parts made, not just what we have
-                        .Caption = GetRequiredInspections(customer:=RibbonCommands.customer, drawNum:=RibbonCommands.drawNum, _
+                        'If its not a Multi-Stage part or the Machining Level is 0, our primary production operation,
+                            'then we should get the total sum of parts made there
+                        'Otherwise, we should get the number of parts brought into that operation.
+                        
+                        'TODO: we can check first that is a Primary production opernation..
+                        If RibbonCommands.multiMachinePart Then
+                            If RibbonCommands.GetMachiningLevel(fullRoutine) = 0 Then
+                                .Caption = GetRequiredInspections(customer:=RibbonCommands.customer, drawNum:=RibbonCommands.drawNum, _
+                                            ProdQty:=DatabaseModule.GetParentProdQty(JobNumber:=RibbonCommands.jobNumUcase), routineType:=routineType)
+                            Else
+                                'Iterate through the runRoutines to we find our matched routine name, get the qty brought into that Operation
+                                For j = 0 To UBound(RibbonCommands.runRoutineList, 2)
+                                    If fullRoutine = RibbonCommands.runRoutineList(0, j) Then
+                                        .Caption = GetRequiredInspections(customer:=RibbonCommands.customer, drawNum:=RibbonCommands.drawNum, _
+                                            ProdQty:=DatabaseModule.GetOpTotalQty(jobNum:=RibbonCommands.jobNumUcase, oprSeq:=runRoutineList(6, j)), routineType:=routineType)
+                                        
+                                        .Visible = True
+                                        GoTo NextObsReq
+                                    End If
+                                Next j
+                                    'TODO: error here, routine wanst found in our run observations..
+                            End If
+                        Else
+                            .Caption = GetRequiredInspections(customer:=RibbonCommands.customer, drawNum:=RibbonCommands.drawNum, _
                                                 ProdQty:=DatabaseModule.GetParentProdQty(JobNumber:=RibbonCommands.jobNumUcase), routineType:=routineType)
+                        End If
                     Else
                         .Caption = GetRequiredInspections(customer:=RibbonCommands.customer, drawNum:=RibbonCommands.drawNum, _
                                                 ProdQty:=RibbonCommands.ProdQty, routineType:=routineType)
@@ -208,14 +245,7 @@ ShouldExist:
                 Else
                 End If
                 
-            ElseIf routineType Like "*LAST_ARTICLE*" Then
-                If RibbonCommands.IsChildJob Then
-                    .Caption = 1
-                    .Visible = True
-                Else
-                    .Caption = 0
-                    .Visible = False
-                End If
+
             Else
                 GoTo RoutineSwitchErr
             End If

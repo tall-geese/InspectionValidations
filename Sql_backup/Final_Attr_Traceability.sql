@@ -9,7 +9,8 @@ FROM .dbo.AttFeatureRunData afrd
 INNER JOIN(SELECT dt.RunID, dt.FeatureID, MAX(dt.StartObsID)[LatestObs]
 			FROM .dbo.Run r 
 			LEFT OUTER JOIN .dbo.Routine rt ON r.RoutineID = rt.RoutineID 
-			INNER JOIN .dbo.DataTraceability dt ON r.RunID = dt.RunID 
+			INNER JOIN .dbo.DataTraceability dt ON r.RunID = dt.RunID
+            INNER JOIN .dbo.AttFeatureRunData afrd ON afrd.RunID = r.RunID AND afrd.FeatureID = dt.FeatureID AND dt.StartObsID = afrd.ObsID
 			WHERE r.RunName = ? AND rt.RoutineName = ? AND dt.TraceabilityListID = 143
 			GROUP BY dt.RunID, dt.FeatureID) src ON src.RunID = afrd.RunID AND src.FeatureID = afrd.FeatureID AND src.LatestObs = afrd.ObsID 
 LEFT OUTER JOIN .dbo.DataTraceability dt2 ON src.RunID = dt2.RunID AND src.FeatureID = dt2.FeatureID AND src.LatestObs = dt2.StartObsID 

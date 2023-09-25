@@ -12,11 +12,11 @@ SELECT Pvt.*
 		        ELSE frd.Value
 	    	END AS 'Value'
 			FROM dbo.FeatureRun fr 
-			INNER JOIN dbo.Feature f ON F.FeatureID = fr.FeatureID 
+			INNER JOIN dbo.Feature f ON F.FeatureID = fr.FeatureID
 			INNER JOIN dbo.Run r ON fr.RunID = r.RunID 
 			INNER JOIN dbo.Routine rt ON rt.RoutineID = r.RoutineID 
 			INNER JOIN dbo.FeatureRunData frd ON fr.RunID = frd.RunID AND fr.FeatureID=frd.FeatureID 
-			INNER JOIN dbo.FeatureProperties frp ON f.FeatureID = frp.FeatureID AND f.FeaturePropID = frp.FeaturePropID 
+			INNER JOIN dbo.FeatureProperties frp ON fr.FeatureID = frp.FeatureID AND fr.FeaturePropID = frp.FeaturePropID 
 			WHERE r.RunName = ? AND rt.RoutineName = ? AND frd.ObsNo > 0
 			UNION ALL
 			SELECT f.FeatureName, afrd.ObsNo, COALESCE(afrd.DefectCount,1)[Value]
@@ -37,7 +37,7 @@ WHERE ;
 SELECT Pvt.*
 	FROM (SELECT f.FeatureName,  frd.ObsNo, frd.Value 
 		FROM dbo.FeatureRun fr 
-		INNER JOIN dbo.Feature f ON F.FeatureID = fr.FeatureID 
+		INNER JOIN dbo.Feature f ON F.FeatureID = fr.FeatureID
 		INNER JOIN dbo.Run r ON fr.RunID = r.RunID 
 		INNER JOIN dbo.Routine rt ON rt.RoutineID = r.RoutineID 
 		INNER JOIN dbo.FeatureRunData frd ON fr.RunID = frd.RunID AND fr.FeatureID=frd.FeatureID 

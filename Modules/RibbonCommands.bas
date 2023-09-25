@@ -281,14 +281,16 @@ QueryRoutines:
             runRoutineList(3, i) = "None" 'setupType
             runRoutineList(4, i) = "NA" 'machine
             runRoutineList(5, i) = "NA" 'cell
-            runRoutineList(6, i) = jobOperations(4, j) 'OprSeq
+            runRoutineList(6, i) = "NA" 'OprSeq  - We only need a val here if we have a parent job with and IP
+            'runRoutineList(6, i) = jobOperations(4, j) 'OprSeq
             
         Else
             'The part only has a single machining operation, this is the bread and butter situation
             runRoutineList(3, i) = jobOperations(1, 0) 'setupType
             runRoutineList(4, i) = jobOperations(2, 0) 'machine
             runRoutineList(5, i) = jobOperations(3, 0) 'cell
-            runRoutineList(6, i) = jobOperations(4, j) 'OprSeq
+            runRoutineList(6, i) = jobOperations(4, 0) 'OprSeq
+            'runRoutineList(6, i) = jobOperations(4, j) 'OprSeq
         End If
     Next i
     

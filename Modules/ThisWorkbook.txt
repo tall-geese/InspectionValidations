@@ -371,7 +371,7 @@ Private Sub Cleanup()
     End With
 
     'Reset everything else on all sheets
-    For i = 1 To 30
+    For i = 1 To DataSources.AVAILABLE_PAGES
         With ThisWorkbook.Worksheets("PAGE " & i)
             If .Visible = True Then
                 .Activate
