@@ -175,10 +175,10 @@ JobInfoErr:
 End Function
 
 
-Function Get1XSHIFTInsps(JobID As String, Operation As Variant) As String
+Function Get1XSHIFTInsps(JobID As String, operation As Variant) As String
     On Error GoTo ShiftERR
     Set fso = New FileSystemObject
-    params = Array("jo.JobNum," & JobID, "jo.OprSeq," & Operation)
+    params = Array("jo.JobNum," & JobID, "jo.OprSeq," & operation)
     query = Split(fso.OpenTextFile(DataSources.QUERIES_PATH & "1XSHIFT.sql").ReadAll, ";")(0)
 
     Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.E10)
@@ -196,10 +196,10 @@ ShiftERR:
     
 End Function
 
-Function Get1XSHIFTDetails(JobID As String, Operation As Variant) As Variant()
+Function Get1XSHIFTDetails(JobID As String, operation As Variant) As Variant()
     On Error GoTo ShiftDetailsERR
     Set fso = New FileSystemObject
-    params = Array("jo.JobNum," & JobID, "jo.OprSeq," & Operation)
+    params = Array("jo.JobNum," & JobID, "jo.OprSeq," & operation)
     query = Split(fso.OpenTextFile(DataSources.QUERIES_PATH & "1XSHIFT.sql").ReadAll, ";")(1)
 
     Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.E10)
@@ -212,10 +212,10 @@ ShiftDetailsERR:
     
 End Function
 
-Function Get1XSHIFTTimeFrames(JobID As String, Operation As Variant) As Variant()
+Function Get1XSHIFTTimeFrames(JobID As String, operation As Variant) As Variant()
     On Error GoTo ShiftTimeFramesERR
     Set fso = New FileSystemObject
-    params = Array("jo.JobNum," & JobID, "jo.OprSeq," & Operation)
+    params = Array("jo.JobNum," & JobID, "jo.OprSeq," & operation)
     query = Split(fso.OpenTextFile(DataSources.QUERIES_PATH & "1XSHIFT.sql").ReadAll, ";")(2)
 
     Call ExecQuery(query:=query, params:=params, conn_enum:=Connections.E10)

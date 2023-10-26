@@ -12,67 +12,32 @@ Option Compare Text
 
 'Epicor Universal Job Info
 Public jobNumUcase As String
-Public customer As String
-Public partNum As String
-Public rev As String
-Public partDesc As String
-Public drawNum As String
-Public ProdQty As Integer
-Public dateTravelerPrinted As String
-Public isShortRunEnabled As Boolean, lowerBoundCutoff As Integer, lowerBoundInspections As Integer
-Public samplingSize As String, custAQL As String
-Public parentChildSamplingSize As String, parentChildFinalAQL As String
-Public IsChildJob As Boolean  'example: NV18209-2
-Public IsParentJob As Boolean  'example: NV18209
+Public job_json As Dictionary
+Public part_json As Dictionary
+
+Public run_feature_json As Collection
+Public run_data_json As Collection
+Public run_traceability_json As Collection
+
+' Public customer As String
+' Public partNum As String
+' Public rev As String
+' Public partDesc As String
+' Public drawNum As String
+' Public ProdQty As Integer
+' Public dateTravelerPrinted As String
+' Public isShortRunEnabled As Boolean, lowerBoundCutoff As Integer, lowerBoundInspections As Integer
+' Public samplingSize As String, custAQL As String
+' Public parentChildSamplingSize As String, parentChildFinalAQL As String
+' Public IsChildJob As Boolean  'example: NV18209-2
+' Public IsParentJob As Boolean  'example: NV18209
 
 
-'Epicor Operation-Specific JobInfo
-Public multiMachinePart As Boolean
-Public machineStageMissing As Boolean
-Public missingLevels() As Integer     'For use in ThisWorkbook
-Public partOperations() As Variant
-    '(0,i) -> JobNum
-    '(1,i) -> OprSeq
-    '(2,i) -> OpCode
-Public jobOperations() As Variant
-    '(0,i) -> JobNum
-    '(1,i) -> setupType
-    '(2,i) -> Machine
-    '(3,i) -> Cell
-    '(4,i) -> OprSeq
-    '(5,i) -> OpCode
-'Routines for the part / Routines that we've run
-Public partRoutineList() As Variant
-    '(0,i) -> RoutineName
-Public runRoutineList() As Variant
-    '(0,i) -> RoutineName
-    '(1,i) -> RunStatus
-    '(2,i) -> ObsFound
-    '(3,i) -> setupType
-    '(4,i) -> machine
-    '(5,i) -> cell
-    '(6,i) -> OprSeq
-
+'*************
 'Features and Measurement Information, applicable to the currently selected Routine
-Dim featureHeaderInfo() As Variant
-    '(0,i) -> FeatureName
-    '(1,i) -> Description
-    '(2,i) -> LTol
-    '(3,i) -> Target
-    '(4,i) -> UTol
-    '(5,i) -> Insp Method
-    '(6,i) -> Attribute / Variable
-    '(7,i) -> Attribute Tolerance
-    '(8,i) -> Balloon Num
-Dim featureMeasuredValues() As Variant
-    '(n,m) dimensional array where..
-        'n -> number of features
-        'm -> number of observations
-Dim featureTraceabilityInfo() As Variant
-    '(0,i) -> ObsTimestamp
-    '(1,i) -> EmpID
-    '(2,i) -> Obs#
-    '(3,i) -> Pass / Fail
+Dim featureHeaderInfo() As Collection
+Dim featureMeasuredValues() As Collection
+Dim featureTraceabilityInfo As Collection
 
 
 '***********Ribbon Controls**************
@@ -116,191 +81,26 @@ End Sub
 Public Sub jbEditText_OnChange(ByRef control As Office.IRibbonControl, ByRef Text As String)
     'Reset the Variables
     Call ClearFeatureVariables
-    
     jobNumUcase = UCase(Text)
+
     If Text = vbNullString Then GoTo 10
     
     On Error GoTo 10
-    Call SetJobVariables(jobNum:=jobNumUcase) 'If this errors out, just clears everything
-    
-    partOperations = DatabaseModule.GetPartOperationInfo(jobNumUcase)
-    jobOperations = DatabaseModule.GetJobOperationInfo(jobNumUcase)
-    
-    On Error GoTo QueryRoutines
-    'If there are no inside mach ops or there are less then there should be according to the MoM, flag that a stage is missing
-    If ((Not jobOperations) = -1 And (Not Not partOperations)) Then
-        machineStageMissing = True
-    ElseIf (Not Not jobOperations) And (Not Not partOperations) Then
-        machineStageMissing = (UBound(jobOperations, 2) < UBound(partOperations, 2))
-    End If
-    
-SkipUbound:
-    'If ops are missing, we need to determine which ones so we can ignore those respective routines later.
-    If machineStageMissing = True Then
-        'If we normally required mach ops for the part and we have some mach ops for this job..
-        If (Not Not jobOperations) And (Not Not partOperations) Then
-            For i = 0 To UBound(partOperations, 2)
-                For j = 0 To UBound(jobOperations, 2)
-                    If (partOperations(1, i) = jobOperations(4, j)) And (partOperations(2, i) = jobOperations(5, j)) Then
-                        'If the Op# and Op Codes Match, then we dont need to do anything here
-                        GoTo Nexti
-                    End If
-                Next j
-                'Otherwise we couldnt find our part operation in the list of job operations
-                If (Not missingLevels) = -1 Then
-                    ReDim Preserve missingLevels(0)
-                    missingLevels(0) = i
-                Else
-                    ReDim Preserve missingLevels(UBound(missingLevels) + 1)
-                    missingLevels(UBound(missingLevels)) = i
-                End If
-Nexti:
-            Next i
-        'We have no machining operations for the job, determine which ops are missing
-        ElseIf ((Not jobOperations) = -1) And (Not Not partOperations) Then
-            For i = 0 To UBound(partOperations, 2)
-                If (Not missingLevels) = -1 Then
-                    ReDim Preserve missingLevels(0)
-                    missingLevels(0) = i
-                Else
-                    ReDim Preserve missingLevels(UBound(missingLevels) + 1)
-                    missingLevels(UBound(missingLevels)) = i
-                End If
-            Next i
-        End If
-    End If
-    
-'If there are more Machining Ops in the Job than the Part, things aren't missing
-    'But we may need to insert a Machining Op into partOperations for later
-    
-    On Error GoTo PartOperationsErr
-AddPartOps:
-    If (Not partOperations) = -1 And (Not Not jobOperations) Then
-        GoTo CompareMachOps
-    'Otherwise if we have both part and job machining operations AND more machining ops in the Job than the Part MoM
-    ElseIf (Not Not partOperations) And (Not Not jobOperations) Then
-        If UBound(jobOperations, 2) > UBound(partOperations, 2) Then
-CompareMachOps:
-            Dim partMoM() As Variant, levelCounter As Integer
-            partMoM = DatabaseModule.GetAllPartOps(partNum:=partNum, rev:=rev)
-            
-            For i = 0 To UBound(partMoM, 2)
-                If partMoM(1, i) = "OUT" Then  'If theres an outside op changed to a machining op
-                    For j = 0 To UBound(jobOperations, 2)
-                        If (jobOperations(5, j) = "SWISS" Or jobOperations(5, j) = "CNC") And (jobOperations(4, j) = partMoM(0, i)) Then
-                            'Insert the into our PartOps at the appropriate index
-                            If (Not partOperations) = -1 Then
-                                ReDim Preserve partOperations(2, 0)
-                                partOperations(0, 0) = jobNumUcase
-                                partOperations(1, 0) = partMoM(0, i) ' OprSeq
-                                partOperations(2, 0) = partMoM(1, i) ' OpCode
-                            Else
-                                'TODO: Create Heloer function to Insert at the Correct Position
-                                partOperations = ExcelHelpers.InsertOpRow(partOperations, jobNumUcase, partMoM(0, i), partMoM(1, i))
-                            End If
-                        End If
-                    Next j
-                End If
-            Next i
-        End If
-    End If
-        
-    On Error GoTo 10
-    If (Not Not partOperations) Then
-        If UBound(partOperations, 2) > 0 Then multiMachinePart = True
-    End If
-    
-QueryRoutines:
-    Dim tempRoutineArray() As Variant
-    On Error GoTo ML_QueryErr:
-    customer = DatabaseModule.GetCustomerName(jobNum:=jobNumUcase)
-    partRoutineList = DatabaseModule.GetPartRoutineList(partNum, rev)
-    tempRoutineArray = DatabaseModule.GetRunRoutineList(jobNumUcase)
+    'Call the HTTP method and set the Variables
+    Dim dhr_json As Dictionary
+    Set dhr_json = HTTPconnections.ValidateDHR(job_num:=jobNumUcase)
+    Set job_json = dhr_json("job_info")
+    Set part_json = dhr_json("part_info")
 
-    If ((Not tempRoutineArray) = -1) Then GoTo 20 'We didnt find any routines for the run
-    
-    'Pass the results of the temp to the runRoutine List, we're going to add other dimensions where we
-        'Keep track of the #ObsFound, setupType, machine and cell
-    ReDim Preserve runRoutineList(6, UBound(tempRoutineArray, 2))
-    For i = 0 To UBound(tempRoutineArray, 2)
-        runRoutineList(0, i) = tempRoutineArray(0, i)
-        runRoutineList(1, i) = tempRoutineArray(1, i)
-    Next i
-        
-    'For each routine created for this run, find how many PASSed observations there are
-    'We need to filter out the failed ones because this value will be used by VettingForm in ObsFound
-    For i = 0 To UBound(runRoutineList, 2)
-        Dim routine As String
-        routine = runRoutineList(0, i)
-        Dim features() As Variant
-        features = DatabaseModule.GetFeatureHeaderInfo(jobNum:=jobNumUcase, routine:=routine)
-
-        'Add the number of found Observations
-        Dim featureCount() As Variant
-        featureCount = DatabaseModule.GetFeatureMeasuredValues(jobNum:=jobNumUcase, routine:=routine, _
-                                        delimFeatures:=JoinPivotFeatures(features), featureInfo:=features)
-        If ((Not featureCount) = -1) Then 'If we get returned an empty array, then the value is 0
-            runRoutineList(2, i) = 0
-        Else
-            If routine Like "*FI_DIM*" Or routine Like "*FI_OP*" Then
-                'FI_DIM routines. Above we checked there we at least a single inspection
-                'Furthermore, if we have variable features we need to make sure we have enough good inspections of those
-                'Since we only ever do a single observation of the attribute features, looking at all features
-                'as a whole, this would normally assume that only one good observation exists
-                If Not DatabaseModule.IsAllAttribrute(routine:=routine) Then
-                    featureCount = DatabaseModule.GetFeatureMeasuredValues(jobNum:=jobNumUcase, routine:=routine, _
-                                    delimFeatures:=JoinPivotFeatures(features), featureInfo:=features, IS_FI_DIM:=True)
-                    runRoutineList(2, i) = UBound(featureCount, 2) + 1
-                Else
-                    runRoutineList(2, i) = UBound(featureCount, 2) + 1
-                End If
-            Else
-                runRoutineList(2, i) = UBound(featureCount, 2) + 1
-            End If
-        End If
-    Next i
-    
-    On Error GoTo RoutineLevelErr
-    For i = 0 To UBound(runRoutineList, 2)
-    
-        If multiMachinePart And (Not Not jobOperations) Then
-            Dim level As Integer
-            level = GetMachiningLevel(routineName:=runRoutineList(0, i)) 'Is this the first machining op, the second?, etc
-            'Theoretically shouldnt have to check if a op of that level exists, since somebody bothered to create the routine for it
-            For j = 0 To UBound(jobOperations, 2)
-                'If OpNum, OpCode of the part machining stage and the job operation, associate Operation attribute with the routine
-                If (partOperations(1, level) = jobOperations(4, j)) And (partOperations(2, level) = jobOperations(5, j)) Then
-                    runRoutineList(3, i) = jobOperations(1, j) 'setupType
-                    runRoutineList(4, i) = jobOperations(2, j) 'machine
-                    runRoutineList(5, i) = jobOperations(3, j) 'cell
-                    runRoutineList(6, i) = jobOperations(4, j) 'OprSeq
-                End If
-            Next j
-            
-        ElseIf (Not jobOperations) = -1 Then 'If we didnt make the part inside, then these attributes don't apply
-            runRoutineList(3, i) = "None" 'setupType
-            runRoutineList(4, i) = "NA" 'machine
-            runRoutineList(5, i) = "NA" 'cell
-            runRoutineList(6, i) = "NA" 'OprSeq  - We only need a val here if we have a parent job with and IP
-            'runRoutineList(6, i) = jobOperations(4, j) 'OprSeq
-            
-        Else
-            'The part only has a single machining operation, this is the bread and butter situation
-            runRoutineList(3, i) = jobOperations(1, 0) 'setupType
-            runRoutineList(4, i) = jobOperations(2, 0) 'machine
-            runRoutineList(5, i) = jobOperations(3, 0) 'cell
-            runRoutineList(6, i) = jobOperations(4, 0) 'OprSeq
-            'runRoutineList(6, i) = jobOperations(4, j) 'OprSeq
-        End If
-    Next i
-    
     'Set our Ribbon Information to the first Routine in our list, invalidate this control later
-    rtCombo_TextField = runRoutineList(0, 0)
-    lblStatus_Text = runRoutineList(1, 0)
+    rtCombo_TextField = job_json("Runs")(1)("Name")
+    
+    'TODO: not currently pulling in the status of our runs...
+    lblStatus_Text = job_json("Runs")(1)("Name")
     rtCombo_Enabled = True
 
     'Set our check boxes, displaying the setup information to the operator
-    Select Case runRoutineList(3, 0)
+    Select Case job_json("Operations")(1)("Setup Type")
         Case "Full"
             chkFull_Pressed = True
         Case "Mini"
@@ -308,59 +108,61 @@ QueryRoutines:
         Case "None"
             chkNone_Pressed = True
         Case Else
-            If Not IsChildJob Then GoTo SetupTypeUndefined
+            If Not job_json("IsChildJob") Then GoTo SetupTypeUndefined
     End Select
     
-    On Error GoTo ML_RoutineInfo
-    Call SetFeatureVariables
     
 20
-    If toggAutoForm_Pressed And ProdQty <> 0 Then VettingForm.Show
+    If toggAutoForm_Pressed And job_json("Qty Complete") <> 0 Then VettingForm.Show
+    
+'TODO: this will all eventually move to RibbonCommands.SetWorkbookInformation()
+'TODO: need to be able to handle us having the attribute FI routine being the first one, this should all be done in a seperate function here
+'TODO: should handle not having any operations here
+'TODO: determine machining level, use THAT for Operation index and machine name
+    ThisWorkbook.populateJobHeaders jobNum:=jobNumUcase, routine:=rtCombo_TextField, _
+        customer:=job_json("Customer"), machine:=job_json("Operations")(1)("Machine"), partNum:=job_json("PartNum"), _
+        rev:=job_json("RevisionNum"), partDesc:=job_json("PartDescription")
+    
+    
+    
+    ExcelHelpers.OpenDataValWB
+    
+    'User Closed the form, go and load up the inspection data for the first of the Routines
+    If toggShowAllObs_Pressed Then  'Load all Observerations
+        'TODO:
+    
+    Else  'Load only passed observations
+        Set result = HTTPconnections.GetPassedInspData(jobNumUcase, rtCombo_TextField)
+        Set run_feature_json = result("feature_info")
+        Set run_data_json = result("insp_data")
+        Set run_traceability_json = result("traceability")
+    End If
+    
+    Call ThisWorkbook.populateReport(header_info:=run_feature_json, insp_data:=run_data_json, traceability:=run_traceability_json)
+    
 10
     'Still gets called if we have an invalid job, it should clean the page and exit out
-    Call SetWorkbookInformation
+
+    'Call SetWorkbookInformation
 
      'Standard updates that are always applicable, refresh the ribbon controls
-    cusRibbon.InvalidateControl "chkFull"
-    cusRibbon.InvalidateControl "chkMini"
-    cusRibbon.InvalidateControl "chkNone"
-    cusRibbon.InvalidateControl "rtCombo"
-    cusRibbon.InvalidateControl "jbEditText"
-    cusRibbon.InvalidateControl "lblStatus"
-   
 
+    ' cusRibbon.InvalidateControl "chkFull"
+    ' cusRibbon.InvalidateControl "chkMini"
+    ' cusRibbon.InvalidateControl "chkNone"
+    ' cusRibbon.InvalidateControl "rtCombo"
+    ' cusRibbon.InvalidateControl "jbEditText"
+    ' cusRibbon.InvalidateControl "lblStatus"
+   
     Exit Sub
     
-RoutineLevelErr:
-    MsgBox Prompt:="Error when attmepting to associate the machining information with a routine: " & vbCrLf & runRoutineList(0, i) & vbCrLf & Err.Description, Buttons:=vbExclamation
-    GoTo 10
-
-ML_QueryErr:
-    MsgBox Prompt:="Error when querying for information: " & vbCrLf & Err.Description, Buttons:=vbExclamation
-    GoTo 10
-    
 SetupTypeUndefined:
-    MsgBox Prompt:="Could not resolve Setup Type (Full, Mini, None)" & vbCrLf & "check this value in Epicor and/or ask a QE", Buttons:=vbExclamation
-    GoTo 10
+    MsgBox "Cannot Determine Setup Type of " & job_json("Operations")(1)("Setup Type") & vbCrLf & "Have this changed to the appriopriate type in Job Entry", vbCritical
+    Exit Sub
+
     
-PartOperationsErr:
-    If Err.Number = vbObjectError + 5000 Then
-        MsgBox Prompt:="Error when trying to add an OUTside operation that has the same OP Number as an already Existing operation" & vbCrLf & vbCrLf & Err.Description, Buttons:=vbCritical
-    End If
-    
-    GoTo 10
-    
-ML_RoutineInfo:
-    MsgBox Prompt:="Error on handling routine: " & routine & vbCrLf & "information is either missing or incorrect, alert a QE" & vbCrLf & Err.Description, Buttons:=vbExclamation
-    GoTo 10
-VettingFormErr:
-    If Err.Number = vbObjectError + 9999 Then 'Handled error, just ignore
-        GoTo 10
-    Else
-        MsgBox "Unidentified error encountered when loading Vetting Form" & vbCrLf & vbCrLf & Err.Description
-        GoTo 10
-    End If
 End Sub
+
 
 
 
@@ -490,6 +292,17 @@ Public Sub testDB_OnGetEnabled(ByRef control As Office.IRibbonControl, ByRef Ret
 End Sub
 
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+'               ML7 Test Database Toggle Button
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
+Public Sub cleanSheets_Pressed(ByRef control As Office.IRibbonControl)
+    ThisWorkbook.Cleanup
+End Sub
+
+
+
+
+
+''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 '               RunStatus Label
 ''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''''
 
@@ -574,53 +387,52 @@ Function JoinPivotFeatures(featureHeaderInfo() As Variant) As String
 
 End Function
 
-Public Function GetMachiningLevel(routineName As Variant) As Integer
-    'Attempt to Associate a RoutineName with the an index position of our operations array
+Public Function GetMachiningOpInfo(routineName As Variant) As Variant()
+    'Using the RunRoutine Name, find the it in our list of required PartRoutines and return the set Level
     
-    'If we dont have partOps, then we cant determine a level, something is wrong
-    If (Not partOperations) = -1 Then Err.Raise Number:=vbObjectError + 4000
-    
-    'set the maximum level
-    Dim maxLevel As Integer
-    maxLevel = UBound(partOperations, 2)
-    Dim routineSub As String
-    
-    On Error GoTo RoutineParsingErr
-    routineSub = Split(routineName, partNum & "_" & rev & "_")(1) 'Get the text appearing after   Part_Rev_"
-    
-    If (InStr(routineSub, "FA") > 0) Or (InStr(routineSub, "IP") > 0) Then
-        If (InStr(routineSub, "IP_ASSY") > 0) Then GoTo 10
-        If routineSub Like "*_MILL" Then
-            routineSub = Replace(routineSub, "_MILL", "")
-        End If
-        
-        If (IsNumeric(Right(routineSub, 1))) Then
-            Dim foundLevel As Integer
-            foundLevel = CInt(Right(routineSub, 1)) - 1
-            If foundLevel <= maxLevel Then
-                GetMachiningLevel = foundLevel
-            Else
-                'Return an error here. Routine Level greater than the number of operations we have? this should be impossible
-                Err.Raise Number:=vbObjectError + 2500, Description:="Routine's Machining Level Number exceeds the Number of Machining Operations Found" _
-                    & vbCrLf & vbCrLf & "Have a QE Double check that the Job MoMs are the same as the Part MoMs in Epicor"
-            End If
+    Dim out_info(3) As Variant
+                
+    If routineName Like "*_FI_*" Then  'Max Level Routine
+        Dim operation As String
+        If routineName Like "*FI_DIM*" Then
+            operation = "FDIM"
+        ElseIf routineName Like "*FI_VIS*" Then
+            operation = "FVIS"
         Else
-            GetMachiningLevel = 0
+            operation = "FI_OP"
         End If
-    ElseIf InStr(routineSub, "FI") > 0 Then
-        'If it is an FI routine we give it the maximum level. It doesn't really matter as we see in Vetting Form, but it makes the most sense
-        'IP_ASSY will also be redirected here
-10
-        GetMachiningLevel = maxLevel
-    Else
-        GoTo RoutineParsingErr
+      
+        out_info(0) = operation 'opcode
+        out_info(1) = 0 'opseq
+        out_info(2) = "QC" 'cell
+        out_info(2) = "QC" 'machin
+
     End If
     
-    Exit Function
+    If part_json("part_routines").Count Then Err.Raise Number:=vbObjectError + 2500
+    For Each job_rt In job_json("Runs")
+        For Each part_rt In part_json("part_routines")
+            If job_rt("Name") = part_rt("Name") Then
+                
+                out_info(0) = job_json("Operations")(part_rt("Level") - 1)("OpCode")
+                out_info(1) = job_json("Operations")(part_rt("Level") - 1)("OpSeq")
+                out_info(2) = job_json("Operations")(part_rt("Level") - 1)("Cell")
+                out_info(2) = job_json("Operations")(part_rt("Level") - 1)("Machine")
+            
+                GetMachiningOpInfo = out_info
+                
+                Exit Function
+            End If
+        Next part_rt
+    Next job_rt
+
+RoutineNotFound:
+    Err.Raise Number:=vbObjectError + 4000, Description:="Created Run of " & routineName & vbCrLf & "But couldn't find a matching required routine in MeasurLink." & _
+        vbCrLf & "Can't determine what Operation the routine belongs to"
     
-RoutineParsingErr:
+RoutineCountErr:
     Err.Raise Number:=vbObjectError + 2500, Description:="Couldn't figure out, what machining operation " & routineName & _
-        vbCrLf & "should belong to. Does not follow correct naming conventions" & vbCrLf & vbCrLf & Err.Description
+        vbCrLf & "should belong to. There were no required Part Routines" & vbCrLf & vbCrLf & Err.Description
 End Function
 
 Private Sub SetFeatureVariables()
@@ -664,48 +476,8 @@ Err1:
 End Sub
 
 Private Sub ClearFeatureVariables(Optional preserveRoutines As Boolean)
-    
-'Always
-        'When the we try to set feature info w/o any info the wb runs cleanup and then stops
-    rtCombo_TextField = ""
-    lblStatus_Text = ""
-    Erase featureHeaderInfo
-    Erase featureMeasuredValues
-    Erase featureTraceabilityInfo
-    
-    
-    If preserveRoutines Then Exit Sub
-    
-'Sometimes
-        'Want to skip this (likely because user entered nonsense into the routineName box)
-    rtCombo_Enabled = False
-    jobNumUcase = UCase(Text)
-    chkFull_Pressed = False
-    chkMini_Pressed = False
-    chkNone_Pressed = False
-    
-    'Keep Job Info
-    partNum = vbNullString
-    rev = vbNullString
-    customer = vbNullString
-    partDesc = vbNullString
-    dateTravelerPrinted = vbNullString
-    isShortRunEnabled = False
-    multiMachinePart = False
-    machineStageMissing = False
-    samplingSize = vbNullString
-    custAQL = vbNullString
-    IsChildJob = False
-    IsParentJob = False
-    parentChildSamplingSize = vbNullString
-    parentChildFinalAQL = vbNullString
-
-    'Keep routines for ComboBox
-    Erase partRoutineList
-    Erase runRoutineList
-    Erase partOperations
-    Erase jobOperations
-    Erase missingLevels
+    Set job_json = Nothing
+    Set part_json = Nothing
 
 End Sub
 
@@ -952,6 +724,8 @@ Public Function GetRoutineIndex(routineName As String) As Integer
 FoundRoutine:
     GetRoutineIndex = i
 End Function
+
+
 
 
 

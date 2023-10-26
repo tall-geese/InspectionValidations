@@ -18,18 +18,18 @@ Attribute VB_Exposed = True
 
 
 
-Sub populateJobHeaders(jobNum As String, routine As Variant, customer As String, machine As Variant, partNum As String, rev As String, partDesc As String)
+Sub populateJobHeaders(jobNum As String, routine As Variant, customer As Variant, machine As Variant, partNum As Variant, rev As Variant, partDesc As Variant)
     On Error GoTo PopHeadersErr:
     Call Cleanup
-    
+
     'If somebody entered nonsense into the Routine ComboBox, then we clear our variables and call this sub
     'That way the cleanup subroutine happens but then we skip setting empty values
     If IsEmpty(routine) Then Exit Sub
-        
-        
+
+
     With Worksheets("PAGE 1")
         .Unprotect Password:="3063bqa"
-        
+
         .Range("C1").Value = jobNum
         .Range("C2").Value = routine
         .Range("C3").Value = customer
@@ -37,8 +37,8 @@ Sub populateJobHeaders(jobNum As String, routine As Variant, customer As String,
         .Range("G3").Value = partNum
         .Range("I3").Value = rev
         .Range("G4").Value = partDesc
-        
-        
+
+
         .Protect Password:="3063bqa", AllowFormattingCells:=True
     End With
     Exit Sub
@@ -48,16 +48,16 @@ PopHeadersErr:
 
 End Sub
 
-Public Sub populateReport(featureInfo() As Variant, featureMeasurements() As Variant, featureTraceability() As Variant)
-
-    'If user entered nonsense into the Routine ComboBox, we end up calling this sub but skip setting anything
-    If (Not featureInfo) = -1 Or (Not featureMeasurements) = -1 Then Exit Sub
+Public Sub populateReport(header_info As Collection, insp_data As Collection, traceability As Collection)
+    'Called by RibbonCommands, see HTTPConnections for data format
     
+    If header_info Is Nothing Or insp_data Is Nothing Then Exit Sub
     Application.ScreenUpdating = False
     
-    'TODO: test that this is infact 0-indexed in the normal situation
     Dim applicablePages As Integer
-    applicablePages = Application.WorksheetFunction.Floor((UBound(featureInfo, 2) - LBound(featureInfo, 2)) / 8, 1) + 1
+    applicablePages = Application.WorksheetFunction.Floor(header_info.Count / 8, 1) + 1
+    
+    Application.ScreenUpdating = False
     
     If applicablePages > DataSources.AVAILABLE_PAGES Then
         Err.Raise Number:=vbObjectError + 9999, Description:="Not enough room to fit all the dimensions"
@@ -68,10 +68,11 @@ Public Sub populateReport(featureInfo() As Variant, featureMeasurements() As Var
         ThisWorkbook.Worksheets("PAGE " & i).Visible = True
     Next i
     
-    Call populateHeaderFeatureInfo(featureInfo:=featureInfo)
-    Call populateFeatureMeasuredValues(featureMeasurements:=featureMeasurements)
-    Call populateTraceabilityInfo(featureTraceabilityInfo:=featureTraceability, pages:=applicablePages)
+    Call populateHeaderFeatureInfo(header_info:=header_info)
+    Call populateFeatureMeasuredValues(insp_data:=insp_data, header_info:=header_info)
+    Call populateTraceabilityInfo(run_traceability_json:=traceability, pages:=applicablePages)
     
+    'Relock the sheets
     For i = 1 To applicablePages
         ThisWorkbook.Worksheets("PAGE " & i).Protect Password:="3063bqa"
     Next i
@@ -160,7 +161,7 @@ attSheetErr:
 End Sub
 
 
-Private Sub populateHeaderFeatureInfo(featureInfo() As Variant)
+Private Sub populateHeaderFeatureInfo(header_info As Collection)
         'Maybe, it could be 1-indexed
     'featureInfo(0,i) -> Balloon Number
     'featureInfo(1,i) -> Feature Description
@@ -174,64 +175,48 @@ Private Sub populateHeaderFeatureInfo(featureInfo() As Variant)
     On Error GoTo FeatureHeadersErr
     
     
-    For i = LBound(featureInfo, 2) To UBound(featureInfo, 2)
+    For i = 1 To header_info.Count
             Dim activePageNum As Integer
             'Each worksheet can only hold 8 features at a time, beyond that we need to switch the active page we're putting info on
-            activePageNum = Application.WorksheetFunction.Floor((i - LBound(featureInfo, 2)) / 8, 1) + 1
+            activePageNum = Application.WorksheetFunction.Floor((i - 1) / 8, 1) + 1
             
             With ThisWorkbook.Worksheets("PAGE " & activePageNum)
                 Dim colLetter As String
-                colLetter = ExcelHelpers.GetAddress(((i - LBound(featureInfo, 2)) Mod 8) + 5)
-                
-'                Dim ballHeader As String
-'                ballHeader = featureInfo(0 + LBound(featureInfo, 1), i)
-'                'If its a numeric balloon number, we should re-format it to be human-readable
-'                If (Mid(ballHeader, 2, 1) = "_") And IsNumeric(Right(ballHeader, 1)) Then
-'                    If (CInt(Right(ballHeader, 2))) > 0 Then
-'                        Dim featureNum As String
-'                        featureNum = Split(ballHeader, "_")(1)
-'                        For j = 0 To Len(featureNum)
-'                            If Mid(featureNum, j + 1, 1) <> 0 Then Exit For
-'                        Next j
-'                        featureNum = Right(featureNum, Len(featureNum) - j)
-'                        .Range(colLetter & "9").Value = featureNum & "_" & Split(ballHeader, "_")(2)
-'                    Else
-'                        .Range(colLetter & "9").Value = Split(ballHeader, "_")(1)
-'                    End If
-'                Else
-'                    .Range(colLetter & "9").Value = ballHeader 'Balloon
-'                End If
+                colLetter = ExcelHelpers.GetAddress(((i - 1) Mod 8) + 5)  'The first feature colum starts 5 columns away
 
-                .Range(colLetter & "9").Value = featureInfo(8 + LBound(featureInfo, 1), i) 'Balloon
-                .Range(colLetter & "10").Value = featureInfo(1 + LBound(featureInfo, 1), i) 'Description
-                Debug.Print (featureInfo(1 + LBound(featureInfo, 1), i))
+'TODO: we are assuming that the custom fields always appear in Id index order, but we should explicity sort this maybe
+
+                .Range(colLetter & "9").Value = header_info(i)("name") 'Balloon
+                .Range(colLetter & "10").Value = header_info(i)("custom_fields")(7)("value") 'Description
                 
-                If featureInfo(6 + LBound(featureInfo, 1), i) = "Variable" Then
-                    .Range(colLetter & "16").Value = featureInfo(2 + LBound(featureInfo, 1), i) 'LTol
-                    .Range(colLetter & "17").Value = featureInfo(3 + LBound(featureInfo, 1), i) 'Target
-                    .Range(colLetter & "18").Value = featureInfo(4 + LBound(featureInfo, 1), i) 'UTol
+                If header_info(i)("type") = DataSources.TYPE_VARIABLE Then
+                    .Range(colLetter & "16").Value = header_info(i)("properties")("ltol") 'LTol
+                    .Range(colLetter & "17").Value = header_info(i)("properties")("nominal") 'Target
+                    .Range(colLetter & "18").Value = header_info(i)("properties")("utol") 'UTol
                 Else
                     'TODO, if the featureInfo(7,i) <> "NA" then  we should attempt to evaluate it and split it
                         ' as well as find the target value. will need to find the sig digs
                         'and the boolean of a leading digit for this.
-                    If featureInfo(7, i) = "NA" Then
+                    If header_info(i)("custom_fields")(1)("value") = "NA" Then
                         .Range(colLetter & "16").Value = "N/A" 'LTol
                         .Range(colLetter & "17").Value = "N/A" 'Target
                         .Range(colLetter & "18").Value = "N/A" 'UTol
                     Else
                         Dim attTol() As Variant
-                        attTol = SplitAttrTol(featureInfo(7, i))
+                        attTol = SplitAttrTol(header_info(i)("custom_fields")(1)("value"))
                         .Range(colLetter & "16").Value = attTol(0) 'LTol
                         .Range(colLetter & "17").Value = attTol(1) 'Target
                         .Range(colLetter & "18").Value = attTol(2) 'UTol
-                        'Also, log what we put in and what we put out
-'                        Debug.Print ("input -> " & vbTab & featureInfo(7, i))
-'                        Debug.Print ("output -> " & vbTab & attTol(0) & vbTab & attTol(1) & vbTab & attTol(2))
                     End If
                 End If
                 
-                .Range(colLetter & "19").Value = ExcelHelpers.GetShortHandMethod(featureInfo(5 + LBound(featureInfo, 1), i)) 'Inpsection Method
-                .Range(colLetter & "8").Value = featureInfo(6 + LBound(featureInfo, 1), i) 'Variable / Attribute  (hidden cell for later reference)
+                .Range(colLetter & "19").Value = ExcelHelpers.GetShortHandMethod(header_info(i)("custom_fields")(3)("value")) 'Inpsection Method
+                
+                If header_info(i)("type") = DataSources.TYPE_VARIABLE Then 'Variable / Attribute  (hidden cell for later reference)
+                    .Range(colLetter & "8").Value = "Variable"
+                Else
+                    .Range(colLetter & "8").Value = "Attribute"
+                End If
             End With
     Next i
     
@@ -243,59 +228,59 @@ FeatureHeadersErr:
 End Sub
 
 
-Private Sub populateFeatureMeasuredValues(featureMeasurements() As Variant)
-    'featureMeasurements has n x m dimensions where
-        'n is the number of features
-        'm is the number of observations
+Private Sub populateFeatureMeasuredValues(insp_data As Collection, header_info As Collection)
+    'see HTTPConnections.GetPassedInspData   for data format
     
-    'featureMeasurements(n,m) -> [Value]
     On Error GoTo FeatureValuesErr
     
-    If ((Not featureMeasurements) = -1) Then Exit Sub
-
-    For i = LBound(featureMeasurements, 1) To UBound(featureMeasurements, 1) 'For each balloon#
-            If i = LBound(featureMeasurements, 1) Then GoTo NextFeature
-            Dim activePageNum As Integer
-            activePageNum = Application.WorksheetFunction.Floor((i - (1 + LBound(featureMeasurements, 1))) / 8, 1) + 1
-
+    If insp_data Is Nothing Then Exit Sub
+    
+    
+'    {
+'            "ObsNo": 1,
+'            "(i)": 0.0,
+'            "(ii)": 0.0,
+'            "(iii)": 0.0,
+'            "0_006_00": 0.0,
+'            "0_010_00": 0.0,
+'            "0_012_00": 0.1852,
+'            "0_024_00": 0.0
+'        },
+    
+    For i = 1 To insp_data.Count
+        For j = 1 To header_info.Count  'for each row, use the feature name as the key to get its measured value
+            activePageNum = Application.WorksheetFunction.Floor((j - 1) / 8, 1) + 1
             With ThisWorkbook.Worksheets("PAGE " & activePageNum)
-                Dim colLetter As String
-                colLetter = ExcelHelpers.GetAddress(((i - (1 + LBound(featureMeasurements, 1))) Mod 8) + 5)
+                colLetter = ExcelHelpers.GetAddress(((j - 1) Mod 8) + 5)
                 
-                For j = LBound(featureMeasurements, 2) To UBound(featureMeasurements, 2) 'For each observation
-
-                    'if the operator forgot to take a measurement, then it comes up as a NULL value
-                    If VarType(featureMeasurements(i, j)) = vbNull Then
-                        .Range(colLetter & (j - LBound(featureMeasurements, 1) + 22)).Value = "N/A"
-                        GoTo NextMeasurement
-                    End If
-                    'We store a hidden value for Attribute/Variable in the 8th row
-                    'If the returned value on an attribute dimension is 1, then it is a failure
-                    If .Range(colLetter & "8").Value = "Attribute" Then
-                        If featureMeasurements(i, j) = 0 Then
-                            .Range(colLetter & (j - LBound(featureMeasurements, 1) + 22)).Value = "Pass"
-                        Else
-                            .Range(colLetter & (j - LBound(featureMeasurements, 1) + 22)).Value = "Fail"
-                        End If
+'TODO: determing teh feature Type here
+                Dim insp_value As Variant
+                insp_value = insp_data(i)(header_info(j)("name"))
+                '.Range(colLetter & (i - 1) + 22).Value = insp_data(i)(header_info(j)("name"))
+                
+                If .Range(colLetter & "8").Value = "Attribute" Then
+                    If insp_value = 0 Then
+                        .Range(colLetter & (i - 1) + 22).Value = "Pass"
                     Else
-                        'Otherwise its variable
-                        If featureMeasurements(i, j) = DataSources.VARIABLE_FAILED_VALUE Then
-                            'ShowALLObs needs to differentiate Failed measurements from missing ones and does this through a special value
-                            .Range(colLetter & (j - LBound(featureMeasurements, 1) + 22)).Value = "Fail"
-                        Else
-                            'Set the good value
-                            .Range(colLetter & (j - LBound(featureMeasurements, 1) + 22)).Value = featureMeasurements(i, j)
-                        End If
-                        
+                        .Range(colLetter & (i - 1) + 22).Value = "Fail"
                     End If
-NextMeasurement:
-                Next j
+                Else
+                    'Otherwise its variable
+                    If insp_value = DataSources.VARIABLE_FAILED_VALUE Then
+                        'ShowALLObs needs to differentiate Failed measurements from missing ones and does this through a special value
+                        .Range(colLetter & (i - 1) + 22).Value = "Fail"
+                    Else
+                        'Set the good value
+                        .Range(colLetter & (i - 1) + 22).Value = insp_value
+                    End If
 
+                End If
             End With
-
-NextFeature:
+NextMeasureMent:
+        Next j
     Next i
     
+
     Exit Sub
     
 FeatureValuesErr:
@@ -303,42 +288,49 @@ FeatureValuesErr:
 
 End Sub
 
-Private Sub populateTraceabilityInfo(featureTraceabilityInfo() As Variant, pages As Integer)
-
-    'featureTraceabilityInfo(0,j) -> Date
-    'featureTraceabilityInfo(1,j) -> EmployeeID
-    'featureTraceabilityInfo(2,j) -> Observation Number
-    'featureTraceabilityInfo(3,j) -> "Pass" / "Fail"
+Private Sub populateTraceabilityInfo(run_traceability_json As Collection, pages As Integer)
+    'Called By populateReport()
+    'See HTTPConnections.GetPasssedData() for more info on Data Format
     
+    '[
+    '        {
+    '            "TimeStamp": "2021-04-19T20:53:29.183000",
+    '            "EmployeeID": "0389",
+    '            "ObsNo": 1,
+    '            "Result": "Pass"
+    '        }, ]
+
     On Error GoTo FeatureTraceErr
-    
-    If ((Not featureTraceabilityInfo) = -1) Then Exit Sub
 
+    'For each page, we add a copy of our traceability information
+    Dim trace_info As Dictionary
     For i = 1 To pages
-        With ThisWorkbook.Worksheets("PAGE " & i)
-            For j = 0 To UBound(featureTraceabilityInfo, 2)
-                .Range("A" & j + 22).Value = featureTraceabilityInfo(0, j) '-> Date
-                .Range("C" & j + 22).Value = featureTraceabilityInfo(1, j) '-> EmployeeID
+        With Me.Worksheets("PAGE " & i)
+            For j = 1 To run_traceability_json.Count
+                Dim normalized_timestamp As String
+                normalized_timestamp = Replace(Replace(run_traceability_json(j)("TimeStamp"), "T", " "), "Z", "")
+                .Range("A" & j + 21).Value = normalized_timestamp
                 
-                'We don't always get a value for the employeeID. So if the value we found is Null, then
-                'set it to the value of the cell that we found above.
-                'This works because we always have an employeeID for at least the first observation.
-                If IsNull(featureTraceabilityInfo(1, j)) Then
-                    .Range("C" & j + 22).Value = .Range("C" & j + 21).Value
+                Dim emp_info As Variant, emp_cell As Range
+                emp_info = run_traceability_json(j)("EmployeeID")
+                Set emp_cell = .Range("C" & j + 21)
+                
+                If IsNull(emp_info) Then
+                    emp_cell.Value = emp_cell.Offset(-1, 0).Value
                 Else
-                    .Range("C" & j + 22).Value = featureTraceabilityInfo(1, j)
+                    emp_cell = emp_info
                 End If
                 
-                'If we detected a failure, set the background as red to indicate that
-                If featureTraceabilityInfo(3, j) = "Fail" Then
-                    .Range("A" & j + 22 & ":" & "C" & j + 22).Interior.Color = RGB(255, 102, 102)
-                    .Range("E" & j + 22 & ":" & "L" & j + 22).Interior.Color = RGB(255, 102, 102)
+                    'Turn failed inspections Red for visibility
+                If run_traceability_json(j)("Result") = "Fail" Then
+                    .Range("A" & j + 21 & ":" & "L" & j + 21).Interior.Color = RGB(255, 0, 0)
                 End If
             Next j
         End With
     Next i
-    
+
     Exit Sub
+
 
 FeatureTraceErr:
     Err.Raise Number:=Err.Number, Description:="Sub: ThisWorkbook.populateTraceabilityInfo" & vbCrLf & Err.Description
@@ -346,7 +338,7 @@ FeatureTraceErr:
 End Sub
 
 
-Private Sub Cleanup()
+Public Sub Cleanup()
 
     Application.ScreenUpdating = False
     
@@ -430,7 +422,8 @@ Private Sub Cleanup()
     
     Application.ScreenUpdating = True
     
-    
+'TODO: just have this here for testing, remove later
+    Me.Worksheets("PAGE 1").Unprotect "3063bqa"
 
 End Sub
 
@@ -605,4 +598,31 @@ Private Sub SetAQL(customer As String, drawNum As String, ProdQty As Integer, Is
         
 End Sub
 
+
+
+Sub TEST_set_features()
+    Dim jobNumUcase As String, rtCombo_TextField As String, result As Dictionary, run_feature_json As Collection, run_data_json As Collection, run_traceability_json As Collection
+
+    jobNumUcase = "SD1419"
+    rtCombo_TextField = "DRW-00815-01_RAG_IP_BENCH"
+    ExcelHelpers.OpenDataValWB
+    
+    Set result = HTTPconnections.GetPassedInspData(jobNumUcase, rtCombo_TextField)
+    Set run_feature_json = result("feature_info")
+    Set run_data_json = result("insp_data")
+    Set run_traceability_json = result("traceability")
+
+    populateHeaderFeatureInfo header_info:=run_feature_json
+    populateFeatureMeasuredValues insp_data:=run_data_json, header_info:=run_feature_json
+    populateTraceabilityInfo run_traceability_json, 1
+    
+            
+    ExcelHelpers.CloseDataValWB
+    Exit Sub
+wbErr:
+    ExcelHelpers.CloseDataValWB
+    MsgBox "Error Occurred at Sub: RibbonCommands.SetWorkbookInformation", vbCritical
+    Err.Raise Number:=vbObjectError + 1200
+    
+End Sub
 
