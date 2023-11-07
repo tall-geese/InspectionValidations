@@ -87,8 +87,6 @@ End Sub
 
 Public Sub populateAttrSheet(job_json As Dictionary, feature_json As Collection, insp_data As Collection, traceability_json As Collection)
 
-'Public Sub populateAttrSheet(attFeatHeaders() As Variant, attFeatResults() As Variant, attFeatTraceability() As Variant, _
-'                                noResults As Boolean, noTraceability As Boolean, noVariables As Boolean)
     'for _FI_ routines ONLY, set the Attribute inspection history
     'Its broken out seperately like this since we typically only inspect a single part for attribute features
         'but will inspect AQL for the variable features
@@ -153,72 +151,6 @@ next_feat:
     
     
     
-'-----------------------------------
-    'attFeatHeaders(0,i) -> Balloon Num
-    'attFeatHeaders(1,i) -> Description
-    'attFeatHeaders(2,i) -> Attr Tolerance
-    'attFeatHeaders(3,i) -> Frequency
-    'attFeatHeaders(4,i) -> Inspection Method
-    'attFeatHeaders(5,i) -> Feature Name
-    
-    'attFeatResults(0,0) -> 0 [Pass] / 1 [Fail]
-    'attFeatResults(1,0) -> Feature Count
-    
-    'attFeatTraceability(0,i) -> Feature Name
-    'attFeatTraceability(1,i) -> Employee Num
-    'attFeatTraceability(2,i) -> DateTime
-    
-    
-    
-'    On Error GoTo attSheetErr:
-'    If (Not attFeatHeaders) = -1 Or (Not attFeatTraceability) = -1 Then Exit Sub
-'    If RibbonCommands.samplingSize = vbNullString Then
-'        Call SetAQL(customer:=RibbonCommands.customer, drawNum:=RibbonCommands.drawNum, _
-'                ProdQty:=RibbonCommands.ProdQty, IsChildOrParent:=(RibbonCommands.IsParentJob Or RibbonCommands.IsChildJob))
-'    End If
-'
-'    With Sheets("PAGE_Attr")
-'        .Visible = True
-'        .Unprotect Password:="3063bqa"
-'
-'        Dim i As Integer
-'        For i = 0 To UBound(attFeatHeaders, 2)
-'            .Range("A" & 11 + i).Value = attFeatHeaders(0, i) 'Balloon
-'            .Range("B" & 11 + i).Value = attFeatHeaders(1, i) 'Char. Description
-'            .Range("E" & 11 + i).Value = attFeatHeaders(2, i) 'Tolerance
-'
-'            If RibbonCommands.samplingSize >= RibbonCommands.ProdQty Then
-'                .Range("H" & 11 + i).Value = format(RibbonCommands.custAQL, "0.00") ''AQL
-'                .Range("I" & 11 + i).Value = "100%" 'SamplingSize
-'            Else
-'                .Range("H" & 11 + i).Value = format(RibbonCommands.custAQL, "0.00") 'AQL
-'                .Range("I" & 11 + i).Value = RibbonCommands.samplingSize 'SamplingSize
-'            End If
-'
-'            .Range("G" & 11 + i).Value = ExcelHelpers.GetShortHandMethod(attFeatHeaders(4, i)) 'Inspection Method
-'
-'            If noResults Then
-'                .Range("J" & 11 + i).Value = "Fail" 'Result
-'                .Range("J" & 11 + i).Interior.Color = RGB(255, 102, 102)
-'            Else
-'                .Range("J" & 11 + i).Value = "Pass" 'Result
-'            End If
-'
-'            If noTraceability Then
-'                .Range("K" & 11 + i).Interior.Color = RGB(255, 102, 102) 'EmployeeID
-'                .Range("L" & 11 + i).Interior.Color = RGB(255, 102, 102) 'Date
-'            Else
-'                .Range("K" & 11 + i).Value = attFeatTraceability(1, i) 'EmployeeID
-'                .Range("L" & 11 + i).Value = attFeatTraceability(2, i) 'Date
-'            End If
-'        Next i
-'
-'        .Protect Password:="3063bqa"
-'    End With
-'
-'    If noVariables Then Worksheets("PAGE 1").Visible = False
-'    Exit Sub
-    
 attSheetErr:
     With Sheets("PAGE_Attr")
         .Visible = False
@@ -232,16 +164,7 @@ End Sub
 
 
 Private Sub populateHeaderFeatureInfo(header_info As Collection)
-        'Maybe, it could be 1-indexed
-    'featureInfo(0,i) -> Balloon Number
-    'featureInfo(1,i) -> Feature Description
-    'featureInfo(2,i) -> Lower Tolerance
-    'featureInfo(3,i) -> Target
-    'featureInfo(4,i) -> Upper Tolerance
-    'featureInfo(5,i) -> Gauge ID
-    'featureInfo(6,i) -> Variable / Attribute
-    'featureInfo(7,i) -> Attribute Tolerance
-    
+
     On Error GoTo FeatureHeadersErr
     
     
@@ -606,12 +529,6 @@ Private Function GenFormat(sigDig As Integer, hasLeadingChar As Boolean) As Stri
     GenFormat = format
 End Function
 
-Sub test_Header()
-    Worksheets("PAGE 1").PageSetup.RightHeader = vbCrLf & "Page &P of " & Worksheets("PAGE 1").Range("K4").Value
-
-
-
-End Sub
 
 Public Sub PrintResults()
 
@@ -637,62 +554,6 @@ Public Sub PrintResults()
     Next Sheet
 
 
-End Sub
-
-
-
-Private Sub Workbook_BeforeClose(Cancel As Boolean)
-        On Error GoTo CloseWB
-        Call DatabaseModule.Close_Connections
-CloseWB:
-
-End Sub
-
-    'Wrapper for ExcelHelpers.GetAQL()
-    'Likely only called in the event the user does not have "Auto Load Checklist" enabled
-Private Sub SetAQL(customer As String, drawNum As String, ProdQty As Integer, IsChildOrParent As Boolean)
-    Dim aqlValues() As String, childOrParent As Boolean
-    childOrParent = (RibbonCommands.IsChildJob Or RibbonCommands.IsParentJob)
-    
-    aqlValues = ExcelHelpers.GetAQL(customer:=RibbonCommands.customer, drawNum:=RibbonCommands.drawNum, _
-                                            ProdQty:=RibbonCommands.ProdQty, isChildOrParentJob:=childOrParent)
-    
-    RibbonCommands.samplingSize = aqlValues(0)
-    RibbonCommands.custAQL = aqlValues(1)
-    
-    If childOrParent Then
-        RibbonCommands.parentChildSamplingSize = aqlValues(2)
-        RibbonCommands.parentChildFinalAQL = aqlValues(3)
-    End If
-        
-End Sub
-
-
-
-Sub TEST_set_features()
-    Dim jobNumUcase As String, rtCombo_TextField As String, result As Dictionary, run_feature_json As Collection, run_data_json As Collection, run_traceability_json As Collection
-
-    jobNumUcase = "SD1419"
-    rtCombo_TextField = "DRW-00815-01_RAG_IP_BENCH"
-    ExcelHelpers.OpenDataValWB
-    
-    Set result = HTTPconnections.GetPassedInspData(jobNumUcase, rtCombo_TextField)
-    Set run_feature_json = result("feature_info")
-    Set run_data_json = result("insp_data")
-    Set run_traceability_json = result("traceability")
-
-    populateHeaderFeatureInfo header_info:=run_feature_json
-    populateFeatureMeasuredValues insp_data:=run_data_json, header_info:=run_feature_json
-    populateTraceabilityInfo run_traceability_json, 1
-    
-            
-    ExcelHelpers.CloseDataValWB
-    Exit Sub
-wbErr:
-    ExcelHelpers.CloseDataValWB
-    MsgBox "Error Occurred at Sub: RibbonCommands.SetWorkbookInformation", vbCritical
-    Err.Raise Number:=vbObjectError + 1200
-    
 End Sub
 
 

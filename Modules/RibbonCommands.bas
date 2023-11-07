@@ -10,10 +10,11 @@ Attribute VB_Name = "RibbonCommands"
 
 Option Compare Text
 
-'Epicor Universal Job Info
+'Main Job Information
 Public jobNumUcase As String
 Public job_json As Dictionary
 Public part_json As Dictionary
+Public created_Routines As Collection
 
 Public run_feature_json As Collection
 Public run_data_json As Collection
@@ -24,26 +25,6 @@ Public fi_feature_json As Collection
 Public fi_run_data_json As Collection
 Public fi_run_traceability_json As Collection
 
-' Public customer As String
-' Public partNum As String
-' Public rev As String
-' Public partDesc As String
-' Public drawNum As String
-' Public ProdQty As Integer
-' Public dateTravelerPrinted As String
-' Public isShortRunEnabled As Boolean, lowerBoundCutoff As Integer, lowerBoundInspections As Integer
-' Public samplingSize As String, custAQL As String
-' Public parentChildSamplingSize As String, parentChildFinalAQL As String
-' Public IsChildJob As Boolean  'example: NV18209-2
-' Public IsParentJob As Boolean  'example: NV18209
-
-
-'*************
-'Features and Measurement Information, applicable to the currently selected Routine
-'Dim featureHeaderInfo() As Collection
-'Dim featureMeasuredValues() As Collection
-'Dim featureTraceabilityInfo As Collection
-
 
 '***********Ribbon Controls**************
 '   we store the Ribbon on startup and use it to "invalidate" the other controls later
@@ -52,7 +33,6 @@ Dim cusRibbon As IRibbonUI
 
 Dim lblStatus_Text As String
 Dim rtCombo_TextField As String
-Public created_Routines As Collection
 Dim rtCombo_Enabled As Boolean
 
 Private toggAutoForm_Pressed As Boolean
@@ -528,14 +508,8 @@ Private Sub SetWorkbookInformation()
     
     Dim machine As String
     Dim op_info() As Variant
-'    Dim attFeatHeaders() As Variant
-'    Dim attFeatResults() As Variant
-'    Dim attFeatTraceability() As Variant
-'    Dim resultsFailed As Boolean
-'    Dim noTraceability As Boolean
-'    Dim noVariables As Boolean
     
-    'Find Out what Machine the Routine had run on... Can we use GetMachiningOpInfo() ?
+    'Find Out what Machine the Routine had run on
     If job_json Is Nothing Then Exit Sub
     If job_json("Operations").Count = 0 Then
         machine = "N/A"
@@ -557,66 +531,6 @@ Private Sub SetWorkbookInformation()
     Call ThisWorkbook.populateAttrSheet(job_json:=job_json, feature_json:=fi_feature_json, insp_data:=fi_run_data_json, traceability_json:=fi_run_traceability_json)
     
     
-'    If (Not Not runRoutineList) Then
-'        index = GetRoutineIndex(rtCombo_TextField)
-'        machine = runRoutineList(4, index)
-'
-''Conditionally handle information for FI_DIM, FI_VIS, FI_RECINSP. Breakoff attributes into their own sheet
-'        If InStr(rtCombo_TextField, "FI_DIM") > 0 Or InStr(rtCombo_TextField, "FI_VIS") > 0 Or InStr(rtCombo_TextField, "RECINSP") > 0 Then
-'            Dim ogLen As Integer
-'            ogLen = UBound(featureHeaderInfo, 2)
-'            Call SliceVariableInformation(noVariables)  'Remove attribute features from our array of information
-'
-'                'if the array if not initialized, then we either have no variable features or there's no features at all
-'            If noVariables Then GoTo SetFIattr
-'            ' If (Not featureHeaderInfo) = -1 Then GoTo SetFIattr
-'
-'                'If the array size is unchanged after slicing then there are only variable features, dont bother querying for attr below
-'            If ogLen = UBound(featureHeaderInfo, 2) - LBound(featureHeaderInfo, 2) Then GoTo SetWBinfo
-'SetFIattr:
-'
-'
-'            attFeatHeaders = DatabaseModule.GetFinalAttrHeaders(jobNumUcase, rtCombo_TextField)
-'            If (Not attFeatHeaders) = -1 Then GoTo SetWBinfo 'either Routine isnt real or was never created
-'
-'
-'            attFeatResults = DatabaseModule.GetFinalAttrResults(jobNumUcase, rtCombo_TextField)
-'            If VarType(attFeatResults(0, 0)) = vbNull Then
-'                resultsFailed = True
-'                MsgBox "No Attribute Inspections taken for routine" & vbCrLf & rtCombo_TextField
-'
-'            ElseIf attFeatResults(0, 0) > 0 Then
-'                resultsFailed = True
-'                MsgBox "One of the most recent inspections for routine" & vbCrLf & rtCombo_TextField & vbCrLf _
-'                    & "Contains a Fail. Additional inspection is needed", vbCritical
-'
-'            ElseIf attFeatResults(1, 0) <> UBound(attFeatHeaders, 2) + 1 Then
-'                resultsFailed = True
-'                MsgBox "Not all attribute features have been inspected for routine" & vbCrLf & rtCombo_TextField _
-'                    & vbCrLf & "Please have QC review the routine for this Job", vbCritical
-'            End If
-'
-'            attFeatTraceability = DatabaseModule.GetFinalAttrTraceability(jobNumUcase, rtCombo_TextField)
-'
-'                'If theres no tracability or we dont have traceability data for every feature
-'                'This seems to be Caused by misalignment of StartObsId and that ObsId not existing in teh RunData
-'                'Perhaps caused by someone starting to take an observation and then not completing that value
-'            If (Not attFeatTraceability) = -1 Or UBound(attFeatTraceability, 2) <> UBound(attFeatHeaders, 2) Then
-'                noTraceability = True
-'                MsgBox "Traceability Information Missing on Attribute Features" & vbCrLf & "Try doing another row of Passes to resolve this issue", vbCritical
-'            End If
-'
-'        End If
-'    Else
-'        'If our runRoutineList is empty, then ThisWorkbook will end up just running the cleanup anyway
-'        machine = ""
-'    End If
-'
-'SetWBinfo:
-'    On Error GoTo wbErr
-'    ExcelHelpers.OpenDataValWB
-    
-    
             
     ExcelHelpers.CloseDataValWB
     Exit Sub
@@ -626,91 +540,6 @@ wbErr:
     Err.Raise Number:=vbObjectError + 1200
     
 End Sub
-
-'Called by SetWorkbookInformation
-    'Take the Global values for featureHeaderInfo, featureMeasuredValues, and featureTraceabilityInfo and slice out the attribute features
-    'Can test with... SS0245
-    
-    'Params
-        'noVariables(byref Boolean) -> if true, then only attribute features exist in our feature arrays
-        
-        
-'Private Sub SliceVariableInformation(ByRef noVariables As Boolean)
-'    If (Not featureHeaderInfo) = -1 Then Exit Sub
-'    If (Not featureMeasuredValues) = -1 Then
-'        noVariables = True
-'        Exit Sub
-'    End If
-'
-'    Dim varCols() As Variant
-'    Dim i As Integer
-'
-'    For i = 0 To UBound(featureHeaderInfo, 2)
-'        If featureHeaderInfo(6, i) <> "Variable" Then GoTo continue
-'
-'        If (Not varCols) = -1 Then
-'            ReDim Preserve varCols(0)
-'            varCols(0) = i + 1
-'        Else
-'            ReDim Preserve varCols(UBound(varCols) + 1)
-'            varCols(UBound(varCols)) = i + 1
-'        End If
-'continue:
-'    Next i
-'
-'        'If there are only Attr features. Erase, as we will be querying for them in another format.
-'    If (Not varCols) = -1 Then
-'        noVariables = True
-'        Erase featureHeaderInfo
-'        Erase featureMeasuredValues
-'        Erase featureTraceabilityInfo
-'        Exit Sub
-'    End If
-'
-'    'If this doesn't make sense, its because VBA slices arrays as though they were 1-indexed, and of course...
-'        'the ADODB library returns records as 0-indexed.
-'        'transposing the array twice returns the same array, but 1-indexed
-'        'but we're also taking care to create our temporary arrays as 1-indexed
-'    varCols = Application.Transpose(Application.Transpose(varCols))
-'
-'
-'    Dim tempCols() As Variant
-'    tempCols = ExcelHelpers.nRange(1, UBound(featureMeasuredValues, 2) + 1) 'This should get each measurement taken.....
-'    Dim tempRow() As Variant
-'    tempRow = Application.Transpose(Array(1, 2, 3, 4, 5, 6, 7, 8, 9))
-'
-'        'Get all the header information for the Variable columns
-'        'Array -> Columns that we want to grab, in this case, everything
-'        'varCols -> The rows of variable features
-'    featureHeaderInfo = Application.index(featureHeaderInfo, Application.Transpose(Array(1, 2, 3, 4, 5, 6, 7, 8, 9)), varCols)
-'
-'        'Get all the measurement information for the Variable columns
-'    varCols = ExcelHelpers.updateForPivotSlice(varCols)
-'    featureMeasuredValues = ExcelHelpers.fill_null(featureMeasuredValues)
-'        'varCols -> the columns that represent our variable Features
-'        'tempCols -> every single observation for those features
-'    featureMeasuredValues = Application.index(featureMeasuredValues, Application.Transpose(varCols), tempCols)
-'End Sub
-
-
-
-'Private Function GetRoutineIndex(routineName As String) As Integer
-'    'Called by SetWorkbookInformation
-'
-'    'If we dont' have a runRoutineList or didnt find a routine of the given name, then return 99 as the index which we will
-'    'Later turn into a flag to in VettingForm when it is trying to figure out which partRoutines, not runRoutines, apply.
-'    If ((Not runRoutineList) = -1) Then GoTo 10
-'
-'    For i = 0 To UBound(runRoutineList, 2)
-'        If routineName = runRoutineList(0, i) Then GoTo FoundRoutine
-'    Next i
-'10
-'    GetRoutineIndex = 99
-'    Exit Function
-'
-'FoundRoutine:
-'    GetRoutineIndex = i
-'End Function
 
 
 Public Function TranslateRunStatus(runStatusCode As Integer) As String
@@ -733,98 +562,4 @@ Public Function TranslateRunStatus(runStatusCode As Integer) As String
             TranslateRunStatus = "???"
     End Select
 End Function
-
-
-
-'Function JoinPivotFeatures(featureHeaderInfo() As Variant) As String
-'
-'    'SQL Pivot tables will require us to specify what the columnns (part features) are, so that list needs to be dynamically generated
-'    Dim paramFeatures() As String
-'    ReDim Preserve paramFeatures(UBound(featureHeaderInfo, 2))
-'    For i = 0 To UBound(featureHeaderInfo, 2)
-'        paramFeatures(i) = "[" & featureHeaderInfo(0, i) & "]"
-'    Next i
-'
-'    JoinPivotFeatures = Join(paramFeatures, ",")
-'
-'End Function
-
-'
-'Private Sub SetJobVariables(jobNum As String)
-'    On Error GoTo jbInfoErr
-'    Dim jobInfo() As Variant
-'
-'    jobInfo = DatabaseModule.GetJobInformation(JobID:=jobNum)
-'
-'    'Add the components of the array to our variables
-'    partNum = jobInfo(2, 0)
-'    rev = jobInfo(3, 0)
-'    partDesc = jobInfo(5, 0)
-'    drawNum = jobInfo(6, 0)
-'
-'    'If the prod Qty is null, its because we dont have a single complete Operation
-'    If VarType(jobInfo(7, 0)) = vbNull Then
-'        Dim result As Integer
-'        result = MsgBox("No Production Qty found, Likely because there isn't a completed Operation yet" & vbCrLf _
-'            & "Would you like to View the results for this job anyway?", vbYesNo)
-'
-'        If result = vbNo Then
-'            Err.Raise Number:=vbObjectError + 2100, Description:="No Operations have been completed for this Job." & vbCrLf & "Cant Verify Inspections"
-'        Else
-'            GoTo skipQty
-'        End If
-'    End If
-'
-'    ProdQty = jobInfo(7, 0)
-'skipQty:
-'
-'    If IsNull(jobInfo(8, 0)) Then Err.Raise vbObjectError + 1000, Description:="Traveler has not been printed yet" & vbCrLf & "Can't Run Report"
-'    dateTravelerPrinted = jobInfo(8, 0)
-'
-'
-'    Dim shortRunInfo() As Variant
-'    shortRunInfo = GetFlaggedShortRunIR(drawNum:=drawNum, rev:=rev, datePrinted:=dateTravelerPrinted)
-'    If Not Not shortRunInfo Then
-'        If shortRunInfo(2, 0) >= 0 Then  'If the job was printed after the IR was flagged for short run Inspections
-'            isShortRunEnabled = True
-'        End If
-'    End If
-'
-'        'Check if a job is a Parent Job
-'    IsParentJob = DatabaseModule.IsParentJob(JobNumber:=jobNum)
-'    If IsParentJob Then Exit Sub 'Prod Qty should exclude negative transaction adjustments
-'
-'
-''        ProdQty = DatabaseModule.GetParentProdQty(JobNumber:=jobnum)
-''        Exit Sub
-''    End If
-'
-'
-'        'Check if the Job is a Child Job Instance, only check if not already a parent job
-'    If Not IsNumeric(Left(jobNum, 1)) And InStr(jobNum, "-") > 0 Then
-'        Dim jobArr() As String
-'        jobArr = Split(jobNum, "-")
-'        If UBound(jobArr) = 1 Then
-'            If (Len(jobArr(1)) = 1 Or Len(jobArr(1)) = 2) And IsNumeric(jobArr(1)) Then IsChildJob = True
-'        End If
-'    End If
-'
-'    Exit Sub
-'
-'jbInfoErr:
-'    'If the recordSet is empty
-'    If Err.Number = vbObjectError + 2000 Then
-'        MsgBox ("Not A Valid Job Number")
-'    Else
-'    'Otherwise we encountered a different problem
-'        result = MsgBox(Err.Description, vbExclamation)
-'    End If
-'
-'    'Either way, reset the job number and invalidate the controls
-'    jobNumUcase = ""
-'    Err.Raise Number:=Err.Number, Description:="SetJobVariables" & vbCrLf & Err.Description
-'
-'
-'End Sub
-
 
