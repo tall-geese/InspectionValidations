@@ -16,7 +16,7 @@ Attribute VB_Exposed = True
 '               populateHeaderFeatureInfo(), populateFeatureMeasuredValues(), populateTraceabilityInfo()
 '*************************************************************************************************
 
-
+Private hideFirstPage As Boolean
 
 Sub populateJobHeaders(jobNum As String, routine As Variant, customer As Variant, machine As Variant, partNum As Variant, rev As Variant, partDesc As Variant)
     On Error GoTo PopHeadersErr:
@@ -51,7 +51,10 @@ End Sub
 Public Sub populateReport(header_info As Collection, insp_data As Collection, traceability As Collection)
     'Called by RibbonCommands, see HTTPConnections for data format
     
-    If header_info Is Nothing Or insp_data Is Nothing Then Exit Sub
+    If header_info Is Nothing Or insp_data Is Nothing Or traceability Is Nothing Then
+        hideFirstPage = True
+        Exit Sub
+    End If
     Application.ScreenUpdating = False
     
     Dim applicablePages As Integer
@@ -82,8 +85,75 @@ Public Sub populateReport(header_info As Collection, insp_data As Collection, tr
 End Sub
 
 
-Public Sub populateAttrSheet(attFeatHeaders() As Variant, attFeatResults() As Variant, attFeatTraceability() As Variant, _
-                                noResults As Boolean, noTraceability As Boolean, noVariables As Boolean)
+Public Sub populateAttrSheet(job_json As Dictionary, feature_json As Collection, insp_data As Collection, traceability_json As Collection)
+
+'Public Sub populateAttrSheet(attFeatHeaders() As Variant, attFeatResults() As Variant, attFeatTraceability() As Variant, _
+'                                noResults As Boolean, noTraceability As Boolean, noVariables As Boolean)
+    'for _FI_ routines ONLY, set the Attribute inspection history
+    'Its broken out seperately like this since we typically only inspect a single part for attribute features
+        'but will inspect AQL for the variable features
+                                
+    If feature_json Is Nothing Or insp_data Is Nothing Or traceability_json Is Nothing Then Exit Sub
+    
+    Dim emp_id As String, insp_date As String
+    emp_id = traceability_json(1)("EmployeeID")
+    insp_date = Replace(Replace(traceability_json(1)("TimeStamp"), "T", " "), "Z", "")
+                       
+    On Error GoTo attSheetErr:
+    With Sheets("PAGE_Attr")
+        .Visible = True
+        .Unprotect "3063bqa"
+        
+        For i = 1 To insp_data.Count
+            .Range("A" & i + 10).Value = insp_data(i)("FeatureName") 'Name
+            If insp_data(i)("Result") = 0 Then 'Pass / Fail
+                .Range("J" & i + 10).Value = "Passed"
+            Else
+                .Range("J" & i + 10).Value = "Failed"
+                .Range("A" & i + 10 & ":" & "L" & i + 10).Interior.Color = RGB(255, 0, 0) 'Set Failure Color
+            End If
+            
+                'Set CustomField Feature Data
+                'The InspData and FeatureJson are out of order, have to sort through and find them
+            For Each feat_json In feature_json
+                If insp_data(i)("FeatureName") = feat_json("name") Then
+                    .Range("B" & i + 10).Value = feat_json("custom_fields")(7)("value") 'Char. Description
+                    .Range("E" & i + 10).Value = feat_json("custom_fields")(1)("value") 'Attr Tolerance
+                    .Range("G" & i + 10).Value = feat_json("custom_fields")(3)("value") 'Inspection Method
+                    .Range("H" & i + 10).Value = feat_json("custom_fields")(4)("value") 'AQL
+                    If IsNull(job_json("Final Sampling Size")) Then
+                        .Range("I" & i + 10).Value = job_json("Sampling Size")
+                    Else
+                        .Range("I" & i + 10).Value = job_json("Final Sampling Size") 'SAMPLINE SIZE?
+                    End If
+                    GoTo next_feat
+                End If
+            Next feat_json
+next_feat:
+            
+            'Set Traceability Information
+            .Range("K" & i + 10).Value = emp_id
+            .Range("L" & i + 10).NumberFormat = "mm/dd/yyyy"
+            .Range("L" & i + 10).Value = insp_date
+        Next i
+    
+        .Protect "3063bqa"
+    End With
+    
+    
+    If hideFirstPage Then   'If we didnt have any variable features
+        With Me.Worksheets("PAGE 1")
+            .Unprotect "3063bqa"
+            .Visible = False
+            .Protect "3063bqa"
+        End With
+    End If
+    
+    Exit Sub
+    
+    
+    
+'-----------------------------------
     'attFeatHeaders(0,i) -> Balloon Num
     'attFeatHeaders(1,i) -> Description
     'attFeatHeaders(2,i) -> Attr Tolerance
@@ -100,54 +170,54 @@ Public Sub populateAttrSheet(attFeatHeaders() As Variant, attFeatResults() As Va
     
     
     
-    On Error GoTo attSheetErr:
-    If (Not attFeatHeaders) = -1 Or (Not attFeatTraceability) = -1 Then Exit Sub
-    If RibbonCommands.samplingSize = vbNullString Then
-        Call SetAQL(customer:=RibbonCommands.customer, drawNum:=RibbonCommands.drawNum, _
-                ProdQty:=RibbonCommands.ProdQty, IsChildOrParent:=(RibbonCommands.IsParentJob Or RibbonCommands.IsChildJob))
-    End If
-   
-    With Sheets("PAGE_Attr")
-        .Visible = True
-        .Unprotect Password:="3063bqa"
-        
-        Dim i As Integer
-        For i = 0 To UBound(attFeatHeaders, 2)
-            .Range("A" & 11 + i).Value = attFeatHeaders(0, i) 'Balloon
-            .Range("B" & 11 + i).Value = attFeatHeaders(1, i) 'Char. Description
-            .Range("E" & 11 + i).Value = attFeatHeaders(2, i) 'Tolerance
-            
-            If RibbonCommands.samplingSize >= RibbonCommands.ProdQty Then
-                .Range("H" & 11 + i).Value = format(RibbonCommands.custAQL, "0.00") ''AQL
-                .Range("I" & 11 + i).Value = "100%" 'SamplingSize
-            Else
-                .Range("H" & 11 + i).Value = format(RibbonCommands.custAQL, "0.00") 'AQL
-                .Range("I" & 11 + i).Value = RibbonCommands.samplingSize 'SamplingSize
-            End If
-            
-            .Range("G" & 11 + i).Value = ExcelHelpers.GetShortHandMethod(attFeatHeaders(4, i)) 'Inspection Method
-        
-            If noResults Then
-                .Range("J" & 11 + i).Value = "Fail" 'Result
-                .Range("J" & 11 + i).Interior.Color = RGB(255, 102, 102)
-            Else
-                .Range("J" & 11 + i).Value = "Pass" 'Result
-            End If
-            
-            If noTraceability Then
-                .Range("K" & 11 + i).Interior.Color = RGB(255, 102, 102) 'EmployeeID
-                .Range("L" & 11 + i).Interior.Color = RGB(255, 102, 102) 'Date
-            Else
-                .Range("K" & 11 + i).Value = attFeatTraceability(1, i) 'EmployeeID
-                .Range("L" & 11 + i).Value = attFeatTraceability(2, i) 'Date
-            End If
-        Next i
-        
-        .Protect Password:="3063bqa"
-    End With
-    
-    If noVariables Then Worksheets("PAGE 1").Visible = False
-    Exit Sub
+'    On Error GoTo attSheetErr:
+'    If (Not attFeatHeaders) = -1 Or (Not attFeatTraceability) = -1 Then Exit Sub
+'    If RibbonCommands.samplingSize = vbNullString Then
+'        Call SetAQL(customer:=RibbonCommands.customer, drawNum:=RibbonCommands.drawNum, _
+'                ProdQty:=RibbonCommands.ProdQty, IsChildOrParent:=(RibbonCommands.IsParentJob Or RibbonCommands.IsChildJob))
+'    End If
+'
+'    With Sheets("PAGE_Attr")
+'        .Visible = True
+'        .Unprotect Password:="3063bqa"
+'
+'        Dim i As Integer
+'        For i = 0 To UBound(attFeatHeaders, 2)
+'            .Range("A" & 11 + i).Value = attFeatHeaders(0, i) 'Balloon
+'            .Range("B" & 11 + i).Value = attFeatHeaders(1, i) 'Char. Description
+'            .Range("E" & 11 + i).Value = attFeatHeaders(2, i) 'Tolerance
+'
+'            If RibbonCommands.samplingSize >= RibbonCommands.ProdQty Then
+'                .Range("H" & 11 + i).Value = format(RibbonCommands.custAQL, "0.00") ''AQL
+'                .Range("I" & 11 + i).Value = "100%" 'SamplingSize
+'            Else
+'                .Range("H" & 11 + i).Value = format(RibbonCommands.custAQL, "0.00") 'AQL
+'                .Range("I" & 11 + i).Value = RibbonCommands.samplingSize 'SamplingSize
+'            End If
+'
+'            .Range("G" & 11 + i).Value = ExcelHelpers.GetShortHandMethod(attFeatHeaders(4, i)) 'Inspection Method
+'
+'            If noResults Then
+'                .Range("J" & 11 + i).Value = "Fail" 'Result
+'                .Range("J" & 11 + i).Interior.Color = RGB(255, 102, 102)
+'            Else
+'                .Range("J" & 11 + i).Value = "Pass" 'Result
+'            End If
+'
+'            If noTraceability Then
+'                .Range("K" & 11 + i).Interior.Color = RGB(255, 102, 102) 'EmployeeID
+'                .Range("L" & 11 + i).Interior.Color = RGB(255, 102, 102) 'Date
+'            Else
+'                .Range("K" & 11 + i).Value = attFeatTraceability(1, i) 'EmployeeID
+'                .Range("L" & 11 + i).Value = attFeatTraceability(2, i) 'Date
+'            End If
+'        Next i
+'
+'        .Protect Password:="3063bqa"
+'    End With
+'
+'    If noVariables Then Worksheets("PAGE 1").Visible = False
+'    Exit Sub
     
 attSheetErr:
     With Sheets("PAGE_Attr")
@@ -341,6 +411,7 @@ End Sub
 Public Sub Cleanup()
 
     Application.ScreenUpdating = False
+    hideFirstPage = False
     
     'Reset the Header information on Page 1
     With Worksheets("PAGE 1")
@@ -422,8 +493,6 @@ Public Sub Cleanup()
     
     Application.ScreenUpdating = True
     
-'TODO: just have this here for testing, remove later
-    Me.Worksheets("PAGE 1").Unprotect "3063bqa"
 
 End Sub
 
@@ -625,4 +694,5 @@ wbErr:
     Err.Raise Number:=vbObjectError + 1200
     
 End Sub
+
 

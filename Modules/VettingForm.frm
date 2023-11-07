@@ -1,10 +1,10 @@
 VERSION 5.00
 Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} VettingForm 
    Caption         =   "MeasurLink Routine Vetting"
-   ClientHeight    =   8280
-   ClientLeft      =   -1830
-   ClientTop       =   -7080
-   ClientWidth     =   7335
+   ClientHeight    =   1670
+   ClientLeft      =   -2580
+   ClientTop       =   -10230
+   ClientWidth     =   1500
    OleObjectBlob   =   "VettingForm.frx":0000
    StartUpPosition =   1  'CenterOwner
 End

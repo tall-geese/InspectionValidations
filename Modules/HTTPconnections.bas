@@ -23,7 +23,6 @@ Attribute VB_Name = "HTTPconnections"
 '*************************************************************
 
 
-
 '****************************************************
 '**************   Main Routine   ********************
 '****************************************************
@@ -71,9 +70,9 @@ Private Function send_http(url As String, method As String, Optional payload As 
     headers = req.getAllResponseHeaders()
     
     Debug.Print (headers)
-    Debug.Print (req.Status & vbTab & req.statusText)
+    Debug.Print (req.status & vbTab & req.statusText)
     
-    If req.Status <> 200 Then GoTo HTTP_Err
+    If req.status <> 200 Then GoTo HTTP_Err
     'Should read the response type here and possible raise and error based on the different response types we can get
     
     send_http = req.responseText
@@ -84,12 +83,12 @@ HTTP_Err:
     If req.readyState < 4 Then
         Err.Raise Number:=vbObjectError + 6010, Description:="send_http Error" & vbCrLf & vbCrLf & "No response from the server. The server may be down or the API service may not be running"
 
-    ElseIf req.Status = 406 Or req.Status = 400 Or req.Status = 404 Then
+    ElseIf req.status = 406 Or req.status = 400 Or req.status = 404 Then
         'Adding a user: Either not in QA department or they have already been reigstered
-        Err.Raise Number:=vbObjectError + 6000 + req.Status, Description:=req.responseText
+        Err.Raise Number:=vbObjectError + 6000 + req.status, Description:=req.responseText
     Else
         'Unhandled HTTP Errors, Likely for Internal Server 500
-        Err.Raise Number:=vbObjectError + 6000, Description:="send_http Error" & vbCrLf & headers & vbCrLf & "Status:" & req.Status & vbTab & req.statusText _
+        Err.Raise Number:=vbObjectError + 6000, Description:="send_http Error" & vbCrLf & headers & vbCrLf & "Status:" & req.status & vbTab & req.statusText _
             & vbCrLf & "RequestBody: " & vbCrLf & req.responseText & vbCrLf & vbclrf
     End If
 End Function
@@ -121,7 +120,9 @@ DHR_Err:
     End If
 End Function
 
-Public Function GetPassedInspData(job_name As String, routine_name As String) As Object
+Public Function GetPassedInspData(job_name As String, routine_name As String, Optional feature_type_only As Variant) As Object
+    'NOTE: feature_type_only ( DataSources.FEAT_TYPE_VARIABLE | DataSources.FEAT_TYPE_ATTRIBUTE )
+
 '    {
 '    "feature_info": [
 '        {
@@ -150,14 +151,35 @@ Public Function GetPassedInspData(job_name As String, routine_name As String) As
 '            "0_012_00": 0.1852,
 '            "0_024_00": 0.0
 '        },]
+'
+'        // OR if we have FI routine and feature_type_only = Attribute
+'        "insp_data": [
+'        {
+'            "FeatureName": "(i)",
+'            "Result": 0
+'        },
+'        {
+'            "FeatureName": "(ii)",
+'            "Result": 0
+'        },
+'        {
     
     
-
     On Error GoTo PassedData_Err:
     
-    Dim resp As String, url As String, q_params(1) As Variant
-    q_params(0) = Array("job_name", job_name)
-    q_params(1) = Array("routine_name", routine_name)
+    Dim resp As String, url As String, q_params() As Variant
+    
+    If Not IsMissing(feature_type_only) Then
+        ReDim Preserve q_params(2)
+        q_params(0) = Array("job_name", job_name)
+        q_params(1) = Array("routine_name", routine_name)
+        q_params(2) = Array("type_exclusive", feature_type_only)
+    Else
+        ReDim Preserve q_params(1)
+        q_params(0) = Array("job_name", job_name)
+        q_params(1) = Array("routine_name", routine_name)
+    
+    End If
     
     
     resp = send_http(url:=DataSources.API_RUN_DATA_PASSED, method:=DataSources.HTTP_GET, q_params:=q_params)
