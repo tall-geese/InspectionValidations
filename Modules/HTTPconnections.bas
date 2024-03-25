@@ -85,7 +85,7 @@ HTTP_Err:
 
     ElseIf req.status = 406 Or req.status = 400 Or req.status = 404 Then
         'Adding a user: Either not in QA department or they have already been reigstered
-        Err.Raise Number:=vbObjectError + 6000 + req.status, Description:=req.responseText
+        Err.Raise Number:=vbObjectError + 6000, Description:=req.responseText
     Else
         'Unhandled HTTP Errors, Likely for Internal Server 500
         Err.Raise Number:=vbObjectError + 6000, Description:="send_http Error" & vbCrLf & headers & vbCrLf & "Status:" & req.status & vbTab & req.statusText _
@@ -195,6 +195,87 @@ PassedData_Err:
     Else
         MsgBox "Unexpected Exception Occured Func: HTTPConnections.GetPassedInspData() when parsing JSON" & vbCrLf & vbCrLf & Err.Description, vbCritical
     End If
+End Function
+
+
+
+Public Function Get1XSHIFTDetails(job_name As String, op_num As Variant) As Collection
+    'called by VettingForm.Email_Button_Click
+    'currently only used for failed 1XShift inspections when we need to report the failed result data back to the cell leaders
+
+    
+    On Error GoTo ShiftDetailsError:
+    
+    Dim resp As String, url As String
+    url = DataSources.API_1XSHIFT_DETAILS & job_name & "/" & op_num & "/"
+    resp = send_http(url:=url, method:=DataSources.HTTP_GET)
+    Set Get1XSHIFTDetails = JsonConverter.ParseJson(resp)
+    
+    Exit Function
+    
+ShiftDetailsError:
+    If Err.Number = vbObjectError + 6000 Then  'Unhandled Exceptions Like Internal Server Error
+        MsgBox Err.Description
+    ElseIf Err.Number = vbObjectError + 6010 Then  'Server Not Responding
+        MsgBox Err.Description, vbExclamation
+    Else
+        MsgBox "Unexpected Exception Occured Func: HTTPConnections.Get1XSHIFTDetails() when parsing JSON" & vbCrLf & vbCrLf & Err.Description, vbCritical
+    End If
+    
+     
+
+
+End Function
+
+Public Function GetAllFeatureTraceabilityData(job_name As String, routine_name As String) As Collection
+    'called by VettingForm.Email_Button_Click
+    'currently only used for failed 1XShift inspections when we need to report the failed result data back to the cell leaders
+
+    
+    On Error GoTo TracebilityError:
+    
+    Dim resp As String, url As String
+    url = DataSources.API_RUN_TRACEABILITY & job_name & "/" & routine_name & "/"
+    resp = send_http(url:=url, method:=DataSources.HTTP_GET)
+    Set GetAllFeatureTraceabilityData = JsonConverter.ParseJson(resp)
+    
+    Exit Function
+    
+TracebilityError:
+    If Err.Number = vbObjectError + 6000 Then  'Unhandled Exceptions Like Internal Server Error
+        MsgBox Err.Description
+    ElseIf Err.Number = vbObjectError + 6010 Then  'Server Not Responding
+        MsgBox Err.Description, vbExclamation
+    Else
+        MsgBox "Unexpected Exception Occured Func: HTTPConnections.GetAllFeatureTraceabilityData() when parsing JSON" & vbCrLf & vbCrLf & Err.Description, vbCritical
+    End If
+    
+    
+
+End Function
+
+
+Public Function GetCellLeadEmail(cell As Variant) As String
+    'called by VettingForm.Email_Button_Click
+    
+    On Error GoTo CellEmailError:
+    
+    Dim resp As String, url As String
+    url = DataSources.API_CELL_EMAIL & cell & "/"
+    resp = send_http(url:=url, method:=DataSources.HTTP_GET)
+    GetCellLeadEmail = JsonConverter.ParseJson(resp)("email")
+    
+    Exit Function
+    
+CellEmailError:
+    If Err.Number = vbObjectError + 6000 Then  'Unhandled Exceptions Like Internal Server Error
+        MsgBox Err.Description
+    ElseIf Err.Number = vbObjectError + 6010 Then  'Server Not Responding
+        MsgBox Err.Description, vbExclamation
+    Else
+        MsgBox "Unexpected Exception Occured Func: HTTPConnections.CellEmailError() when parsing JSON" & vbCrLf & vbCrLf & Err.Description, vbCritical
+    End If
+
 End Function
 
 

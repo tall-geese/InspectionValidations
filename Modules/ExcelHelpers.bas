@@ -87,10 +87,10 @@ Private Function MakeProductionDetailsTable(shiftDetails() As Variant) As String
     Dim outString As String
     Dim i As Integer, j As Integer
     For i = 0 To UBound(shiftDetails, 2)
-        Dim opDetails() As Variant
+        Dim opDetails As Collection
         Dim table As String
         
-        opDetails = shiftDetails(2, i)
+        Set opDetails = shiftDetails(2, i)
         table = table & "<h5>" & shiftDetails(0, i) & " - " & shiftDetails(1, i) & "</h5>"
         
         
@@ -104,10 +104,14 @@ Private Function MakeProductionDetailsTable(shiftDetails() As Variant) As String
         table = table & "<td width=" & Chr(34) & "150" & Chr(34) & ">" & "Shift" & "</td>"
         table = table & "<td width=" & Chr(34) & "150" & Chr(34) & ">" & "Prod Qty" & "</td>"
     
-        For j = 0 To UBound(opDetails, 2)
+        'Get each key from the Collection
+        Dim keys() As Variant
+        keys = Array("JobNum", "Name", "EmpID", "PayrollDate", "Shift", "LaborQty")
+        For j = 1 To opDetails.Count
+            
             table = table & "<tr>"
             For k = 0 To 5
-               table = table & "<td>" & opDetails(k, j) & "</td>"
+               table = table & "<td>" & opDetails(j)(keys(k)) & "</td>"
             Next k
             table = table & "</tr>"
         Next j
@@ -126,10 +130,10 @@ Private Function MakeInspectionDetailsTable(shiftTraceability() As Variant) As S
     Dim outString As String
     Dim i As Integer, j As Integer
     For i = 0 To UBound(shiftTraceability, 2)
-        Dim opDetails() As Variant
+        Dim opDetails As Collection
         Dim table As String
         
-        opDetails = shiftTraceability(2, i)
+        Set opDetails = shiftTraceability(2, i)
         table = table & "<h5>" & shiftTraceability(0, i) & " - " & shiftTraceability(1, i) & "</h5>"   'JobNum - Routine
         
         
@@ -141,10 +145,12 @@ Private Function MakeInspectionDetailsTable(shiftTraceability() As Variant) As S
         table = table & "<td width=" & Chr(34) & "150" & Chr(34) & ">" & "Obs#" & "</td>"
         table = table & "<td width=" & Chr(34) & "150" & Chr(34) & ">" & "Pass/Fail" & "</td>"
     
-        For j = 0 To UBound(opDetails, 2)
+        Dim keys() As Variant
+        keys = Array("TimeStamp", "EmployeeID", "ObsNo", "Result")
+        For j = 1 To opDetails.Count
             table = table & "<tr>"
             For k = 0 To 3
-               table = table & "<td>" & opDetails(k, j) & "</td>"
+               table = table & "<td>" & opDetails(j)(keys(k)) & "</td>"
             Next k
             table = table & "</tr>"
         Next j

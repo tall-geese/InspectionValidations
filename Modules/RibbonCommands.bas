@@ -111,7 +111,7 @@ Public Sub jbEditText_OnChange(ByRef control As Office.IRibbonControl, ByRef Tex
         Case "None"
             chkNone_Pressed = True
         Case Else
-            If Not job_json("IsChildJob") Then GoTo SetupTypeUndefined
+            'If Not job_json("IsChildJob") Then GoTo SetupTypeUndefined
     End Select
     
     
@@ -410,7 +410,7 @@ Public Function GetMachiningOpInfo(routineName As Variant) As Variant()
         If routineName = part_rt("Name") Then
             
             out_info(0) = job_json("Operations")(part_rt("Level") + 1)("OpCode")
-            out_info(1) = job_json("Operations")(part_rt("Level") + 1)("OpSeq")
+            out_info(1) = job_json("Operations")(part_rt("Level") + 1)("OprSeq")
             out_info(2) = job_json("Operations")(part_rt("Level") + 1)("Cell")
             out_info(3) = job_json("Operations")(part_rt("Level") + 1)("Machine")
         

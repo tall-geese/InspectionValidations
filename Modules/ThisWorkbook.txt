@@ -58,7 +58,7 @@ Public Sub populateReport(header_info As Collection, insp_data As Collection, tr
     Application.ScreenUpdating = False
     
     Dim applicablePages As Integer
-    applicablePages = Application.WorksheetFunction.Floor(header_info.Count / 8, 1) + 1
+    applicablePages = Application.WorksheetFunction.Ceiling(header_info.Count / 8, 1)
     
     Application.ScreenUpdating = False
     

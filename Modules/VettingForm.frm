@@ -1,10 +1,10 @@
 VERSION 5.00
 Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} VettingForm 
    Caption         =   "MeasurLink Routine Vetting"
-   ClientHeight    =   2480
-   ClientLeft      =   -2810
-   ClientTop       =   -11130
-   ClientWidth     =   3300
+   ClientHeight    =   3690
+   ClientLeft      =   -3370
+   ClientTop       =   -13530
+   ClientWidth     =   4930
    OleObjectBlob   =   "VettingForm.frx":0000
    StartUpPosition =   1  'CenterOwner
 End
@@ -38,6 +38,10 @@ Dim failedRoutines() As Variant
 '    failedRoutines(2, index) = Me.ObsFound(location).Caption
 
 
+Private Sub FinalAQLHeader_Click()
+
+End Sub
+
 '****************************************************************************************
 '               UserForm Callbacks
 '****************************************************************************************
@@ -49,28 +53,28 @@ Private Sub UserForm_Initialize()
     Me.ProdQty.Caption = format(RibbonCommands.job_json("Qty Complete"), "#,###")
 
     'Set the AQL
-    If RibbonCommands.job_json("AQL") Then Me.Controls("AQL").Caption = RibbonCommands.job_json("AQL")
-    If RibbonCommands.job_json("FINAL_AQL") Then Me.Controls("FinalAQL").Caption = RibbonCommands.job_json("FINAL_AQL")
+    If RibbonCommands.job_json("AQL") Then Me.Controls("AQL").Caption = format(RibbonCommands.job_json("AQL"), "#.00")
+    If RibbonCommands.job_json("FINAL_AQL") Then
+        Me.Controls("FinalAQLHeader").Visible = True
+        With Me.Controls("FinalAQL")
+            .Caption = format(RibbonCommands.job_json("FINAL_AQL"), "#.00")
+            .Visible = True
+        End With
+    End If
 
     'Set the required routines for the part
     'Also set the required observations for the routine
     Dim i As Integer
     For Each rt In RibbonCommands.job_json("Runs")
     
-        ' Wasn't a required routine, just inform the user
-        If rt("Created") And rt("Required Inspections") = 0 Then GoTo UniqueRoutineErr
 
         ' Reset Controls
         With Me.RoutineFrame.Controls(i)
             .Caption = rt("Name") 'set all of the routines that COULD be applicable
-            .ForeColor = RGB(128, 128, 128)
+            .ForeColor = RGB(0, 0, 0)
             .Visible = True
         End With
-        With Me.ObsFound.Controls(i)
-            .Caption = ""
-            .Visible = False
-        End With
-
+        
         ' Set the obs results
         With Me.ObsFound.Controls(i)
             .Caption = rt("Passed Inspections")
@@ -81,8 +85,24 @@ Private Sub UserForm_Initialize()
             .Visible = True
         End With
         
+        ' Wasn't a required routine, but someone made it anyway
+        If rt("Created") And rt("Required Inspections") = 0 Then
+            Me.RoutineFrame.Controls(i).ForeColor = &H8000000D
+            Me.ResultFrame.Controls(i).Visible = False
+            
+            GoTo UniqueRoutineErr
+        End If
+        
+    
+        'If a routine was never created, gray it out
+        If rt("Created") = False Then
+            With Me.RoutineFrame.Controls(i)
+                .ForeColor = RGB(128, 128, 128)
+            End With
+        End If
+        
+        
         If rt("Passed") = True Then
-            Me.RoutineFrame.Controls(i).ForeColor = RGB(0, 0, 0)
             With Me.ObsFound.Controls(i)
                 .Caption = rt("Passed Inspections")
                 .Visible = True
@@ -93,14 +113,14 @@ Private Sub UserForm_Initialize()
             End With
             GoTo NextRt
         ElseIf rt("Required Inspections") = 0 Then
-            ' We have a routine that was never required to be inspected
-             With Me.ObsFound.Controls(i)
-                .Caption = rt("Passed Inspections")
-                .Visible = True
-            End With
+            ' We have a routine that was never required to be inspected, make the text gray and strikeout
+'             With Me.ObsReq.Controls(i)
+'                .Caption = rt("Passed Inspections")
+'                .Visible = True
+'            End With
             Me.RoutineFrame.Controls(i).Font.Strikethrough = True
-            hideResult location:=i
-            GoTo NextRt
+            Me.ResultFrame.Controls(i).Visible = False
+'            hideResult location:=i
 
         Else
             ' We have an actual failure
@@ -164,7 +184,7 @@ Private Sub EmailButton_Click()
 
     
     'If there are no machining operations required, then we dont need to query for a machine name
-    If Not RibbonCommands.job_json Is Nothing Then
+    If RibbonCommands.job_json Is Nothing Then
         ReDim Preserve machines(0)
         machines(0) = "[Outsourced Machining]"
         GoTo 10
@@ -180,12 +200,12 @@ Private Sub EmailButton_Click()
                 ReDim Preserve shiftDetails(2, 0)
                 shiftDetails(0, 0) = opInfo(0) 'OpCode
                 shiftDetails(1, 0) = opInfo(1) 'OpSeq
-                shiftDetails(2, 0) = DatabaseModule.Get1XSHIFTDetails(JobID:=RibbonCommands.jobNumUcase, operation:=opInfo(1))
+                Set shiftDetails(2, 0) = HTTPconnections.Get1XSHIFTDetails(job_name:=RibbonCommands.jobNumUcase, op_num:=opInfo(1))
             Else
                 ReDim Preserve shiftDetails(2, UBound(shiftDetails, 2) + 1)
                 shiftDetails(0, 0) = opInfo(0) 'OpCode
                 shiftDetails(1, 0) = opInfo(1) 'OpSeq
-                shiftDetails(2, 0) = DatabaseModule.Get1XSHIFTDetails(JobID:=RibbonCommands.jobNumUcase, operation:=opInfo(1))
+                Set shiftDetails(2, 0) = HTTPconnections.Get1XSHIFTDetails(job_name:=RibbonCommands.jobNumUcase, op_num:=opInfo(1))
             End If
             
             'We also want to populate the Inspections taken for the 1XSHIFT
@@ -193,12 +213,13 @@ Private Sub EmailButton_Click()
                 ReDim Preserve shiftTraceability(2, 0)
                 shiftTraceability(0, 0) = RibbonCommands.jobNumUcase
                 shiftTraceability(1, 0) = failedRoutines(0, i)
-                shiftTraceability(2, 0) = DatabaseModule.GetAllFeatureTraceabilityData(jobNum:=RibbonCommands.jobNumUcase, routine:=CStr(failedRoutines(0, i)), FILL_EMP_IDS:=True)
+                Set shiftTraceability(2, 0) = HTTPconnections.GetAllFeatureTraceabilityData(job_name:=RibbonCommands.jobNumUcase, routine_name:=CStr(failedRoutines(0, i)))
+'                shiftTraceability(2, 0) = DatabaseModule.GetAllFeatureTraceabilityData(jobNum:=RibbonCommands.jobNumUcase, routine:=CStr(failedRoutines(0, i)), FILL_EMP_IDS:=True)
             Else
                 ReDim Preserve shiftTraceability(2, UBound(shiftTraceability, 2) + 1)
                 shiftTraceability(0, UBound(shiftTraceability, 2)) = RibbonCommands.jobNumUcase
                 shiftTraceability(1, UBound(shiftTraceability, 2)) = failedRoutines(0, i)
-                shiftTraceability(2, UBound(shiftTraceability, 2)) = DatabaseModule.GetAllFeatureTraceabilityData(jobNum:=RibbonCommands.jobNumUcase, routine:=CStr(failedRoutines(0, i)), FILL_EMP_IDS:=True)
+                Set shiftTraceability(2, 0) = HTTPconnections.GetAllFeatureTraceabilityData(job_name:=RibbonCommands.jobNumUcase, routine_name:=CStr(failedRoutines(0, i)))
             End If
             
         End If
@@ -212,11 +233,11 @@ Private Sub EmailButton_Click()
         Else
             If Not (IsNumeric(Application.Match(opInfo(2), cells, 0))) Then 'If the cell is not already in our list of cells, add it
                 ReDim Preserve cells(UBound(cells) + 1)
-                cells(UBound(cells)) = cell
+                cells(UBound(cells)) = opInfo(2)
             End If
             If Not (IsNumeric(Application.Match(opInfo(3), machines, 0))) Then 'If the machines is not already in our list of machines, add it
                 ReDim Preserve machines(UBound(machines) + 1)
-                machines(UBound(machines)) = machine
+                machines(UBound(machines)) = opInfo(3)
             End If
         End If
         
@@ -224,7 +245,7 @@ Private Sub EmailButton_Click()
 
     Dim cellLeadEmail As String
     For i = 0 To UBound(cells)
-        cellLeadEmail = cellLeadEmail & DatabaseModule.GetCellLeadEmail(cell:=cells(i)) & ";"
+        cellLeadEmail = cellLeadEmail & HTTPconnections.GetCellLeadEmail(cell:=cells(i)) & ";"
     Next i
 10
     Dim machineList As String
