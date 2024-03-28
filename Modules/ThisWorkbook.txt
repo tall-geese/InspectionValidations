@@ -7,6 +7,7 @@ Attribute VB_GlobalNameSpace = False
 Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = True
+
 '*************************************************************************************************
 '
 '   ThisWorkbook
@@ -530,7 +531,10 @@ Private Function GenFormat(sigDig As Integer, hasLeadingChar As Boolean) As Stri
 End Function
 
 
-Public Sub PrintResults()
+Public Sub PrintResults(Optional PdfPrinting As Boolean, Optional PrintPath As Variant, Optional ByRef PrintCount As Variant)
+
+    'Make sure pdfPrinting has the correct arguements
+    If PdfPrinting And (IsMissing(PrintPath) Or IsMissing(PrintCount)) Then Err.Raise vbObjectError + 4010
 
     Dim endPage As Integer
     'we set a hidden value at this cell to tell us how many pages needed to print
@@ -545,15 +549,26 @@ Public Sub PrintResults()
                 Dim attEnd As Integer
                 attEnd = CInt(Sheet.Range("L4").Value)
                 Sheet.PageSetup.RightHeader = vbCrLf & "Page &P of " & attEnd
-                Sheet.Printout From:=1, To:=attEnd, Collate:=True
+                If PdfPrinting Then
+                    Sheet.Printout From:=1, To:=attEnd, PrintToFile:=True, PrToFileName:=PrintPath & PrintCount & ".pdf"
+                    PrintCount = PrintCount + 1
+                Else
+                    Sheet.Printout From:=1, To:=attEnd, Collate:=True
+                End If
             Else
                 Sheet.PageSetup.RightHeader = vbCrLf & "Page &P of " & endPage
-                Sheet.Printout From:=1, To:=endPage, Collate:=True
+                If PdfPrinting Then
+                    Sheet.Printout From:=1, To:=endPage, PrintToFile:=True, PrToFileName:=PrintPath & PrintCount & ".pdf"
+                    PrintCount = PrintCount + 1
+                Else
+                    Sheet.Printout From:=1, To:=endPage, Collate:=True
+                End If
             End If
         End If
     Next Sheet
 
 
 End Sub
+
 
 

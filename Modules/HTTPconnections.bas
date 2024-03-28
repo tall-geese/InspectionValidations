@@ -85,7 +85,9 @@ HTTP_Err:
 
     ElseIf req.status = 406 Or req.status = 400 Or req.status = 404 Then
         'Adding a user: Either not in QA department or they have already been reigstered
-        Err.Raise Number:=vbObjectError + 6000, Description:=req.responseText
+        Dim resp_detail As Variant
+        resp_detail = JsonConverter.ParseJson(req.responseText)("detail")
+        Err.Raise Number:=vbObjectError + 6000, Description:=resp_detail
     Else
         'Unhandled HTTP Errors, Likely for Internal Server 500
         Err.Raise Number:=vbObjectError + 6000, Description:="send_http Error" & vbCrLf & headers & vbCrLf & "Status:" & req.status & vbTab & req.statusText _

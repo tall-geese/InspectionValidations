@@ -1,10 +1,10 @@
 VERSION 5.00
 Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} VettingForm 
    Caption         =   "MeasurLink Routine Vetting"
-   ClientHeight    =   3690
-   ClientLeft      =   -3370
-   ClientTop       =   -13530
-   ClientWidth     =   4930
+   ClientHeight    =   8260
+   ClientLeft      =   -3800
+   ClientTop       =   -15330
+   ClientWidth     =   7270
    OleObjectBlob   =   "VettingForm.frx":0000
    StartUpPosition =   1  'CenterOwner
 End
@@ -70,7 +70,7 @@ Private Sub UserForm_Initialize()
 
         ' Reset Controls
         With Me.RoutineFrame.Controls(i)
-            .Caption = rt("Name") 'set all of the routines that COULD be applicable
+            .Caption = rt("RtName") 'set all of the routines that COULD be applicable
             .ForeColor = RGB(0, 0, 0)
             .Visible = True
         End With
@@ -161,7 +161,7 @@ NextRt:
     
 
 UniqueRoutineErr:
-   MsgBox "Application found this routine: " & rt("Name") & _
+   MsgBox "Application found this routine: " & rt("RtName") & _
                 vbCrLf & "Which doesn't match any of our required routines" & _
                 vbCrLf & "If a routine name changed, it could cause misalignment here", vbInformation
    GoTo NextRt

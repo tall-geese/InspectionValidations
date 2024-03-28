@@ -1,4 +1,5 @@
 Attribute VB_Name = "RibbonCommands"
+
 '*************************************************************************************************
 '
 '   RibbonCommands
@@ -29,7 +30,7 @@ Public fi_run_traceability_json As Collection
 '***********Ribbon Controls**************
 '   we store the Ribbon on startup and use it to "invalidate" the other controls later
 '   which makes them call some of their callback functions
-Dim cusRibbon As IRibbonUI
+Public cusRibbon As IRibbonUI
 
 Dim lblStatus_Text As String
 Dim rtCombo_TextField As String
@@ -87,9 +88,9 @@ Public Sub jbEditText_OnChange(ByRef control As Office.IRibbonControl, ByRef Tex
     Set created_Routines = New Collection
     For Each run_rt In job_json("Runs")
         If run_rt("Created") = True Then
-            created_Routines.Add run_rt("Name")
+            created_Routines.Add run_rt("RtName")
             If created_Routines.Count = 1 Then
-                rtCombo_TextField = run_rt("Name")
+                rtCombo_TextField = run_rt("RtName")
             End If
         End If
     Next run_rt
@@ -159,7 +160,7 @@ Public Sub rtCombo_OnChange(ByRef control As Office.IRibbonControl, ByRef Text A
     validChange = False
     
     For Each run In job_json("Runs")
-        If run("Name") = Text And run("Created") = True Then
+        If run("RtName") = Text And run("Created") = True Then
             validChange = True
             status = run("Status")
             Exit For
@@ -229,7 +230,7 @@ End Sub
 Public Sub Callback(ByRef control As Office.IRibbonControl)
     If jobNumUcase = vbNullString Then
         MsgBox "No Job Currently Loaded", vbInformation
-    ElseIf ProdQty = 0 Then
+    ElseIf RibbonCommands.job_json("Qty Complete") = 0 Then
         MsgBox "There is no Production Qty for this Job" & vbCrLf & "Nothing to Verify", vbInformation
     Else
         VettingForm.Show
@@ -354,16 +355,63 @@ End Sub
 Public Sub IterPrintRoutines()
 
     Dim run_routine As Dictionary
+    Dim PdfPrinting As Boolean
+    Dim PrintCount As Integer: PrintCount = 1
+
+    ' If PDF, Setup the print directory
+    If Application.ActivePrinter Like "*PDF*" Then
+        PdfPrinting = True
+        Dim PrintPath As String
+        PrintPath = Replace(DataSources.DEFAULT_PDF_PATH, "{user}", Environ("USERNAME"))
+        With Application.FileDialog(msoFileDialogFolderPicker)
+            .Title = "Select a Folder to Save the PDF"
+            .InitialFileName = PrintPath
+            .AllowMultiSelect = False
+            .Show
+
+            If .SelectedItems.Count = 0 Then Exit Sub   'User cancelled
+            PrintPath = .SelectedItems(1) & "\"
+        End With
+    End If
+    
+    'If .pdfs already exist in chosen directory, warn the user that they may overwrite something....
+    Dim ExistingPDFs As Boolean, FileFound As String
+    FileFound = Dir(PrintPath)
+    If FileFound = vbNullString Then GoTo skip_delete
+    ExistingPDFs = FileFound Like "*.pdf"
+    If ExistingPDFs Then GoTo delete_pdfs
+    
+    While FileFound <> vbNullString
+        FileFound = Dir()
+        If FileFound Like "*.pdf" Then GoTo delete_pdfs
+    Wend
+    GoTo skip_delete
+    
+
+delete_pdfs:
+    Dim resp As Integer
+    resp = MsgBox("Existing Files detected in this directory" & vbCrLf & "Printing here could overwrite existing .pdf files" & vbCrLf & "Are you sure you want to continue?", vbYesNo)
+    If resp = vbNo Then Exit Sub
+
+
+
+skip_delete:
     For Each run_routine In job_json("Runs")
+        On Error GoTo 10
         If run_routine("Created") = False Then GoTo skip_rt
-        rtCombo_TextField = run_routine("Name")
+        rtCombo_TextField = run_routine("RtName")
         lblStatus_Text = TranslateRunStatus(run_routine("Status"))
         
-        On Error GoTo 10
         Call ClearFeatureVariables(preserveRoutines:=True, preserveRoutineName:=True)
         Call SetFeatureVariables
         Call SetWorkbookInformation
-        Call ThisWorkbook.PrintResults
+
+        If PdfPrinting Then
+            On Error GoTo PDFErr
+            ThisWorkbook.PrintResults PdfPrinting:=PdfPrinting, PrintPath:=PrintPath, PrintCount:=PrintCount
+        Else
+            ThisWorkbook.PrintResults
+        End If
 skip_rt:
     Next run_routine
 
@@ -373,6 +421,13 @@ skip_rt:
     cusRibbon.InvalidateControl "jbEditText"
     cusRibbon.InvalidateControl "lblStatus"
     
+    Exit Sub
+
+PDFErr:
+    If Err.Number = vbObjectError + 4010 Then
+        MsgBox "Error Occurred at Sub: RibbonCommands.IterPrintRoutines, PDF arguements are missing" & vbCrLf & Err.Description, vbCritical
+    End If
+    GoTo 10
     
 End Sub
 
@@ -407,7 +462,7 @@ Public Function GetMachiningOpInfo(routineName As Variant) As Variant()
     
     If part_json("part_routines").Count = 0 Then Err.Raise Number:=vbObjectError + 2500
     For Each part_rt In part_json("part_routines")
-        If routineName = part_rt("Name") Then
+        If routineName = part_rt("RtName") Then
             
             out_info(0) = job_json("Operations")(part_rt("Level") + 1)("OpCode")
             out_info(1) = job_json("Operations")(part_rt("Level") + 1)("OprSeq")
@@ -562,4 +617,6 @@ Public Function TranslateRunStatus(runStatusCode As Integer) As String
             TranslateRunStatus = "???"
     End Select
 End Function
+
+
 
